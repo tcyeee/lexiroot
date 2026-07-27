@@ -1,0 +1,73 @@
+use std::collections::HashMap;
+use std::path::Path;
+
+use anyhow::{anyhow, Result};
+use lexiroot_analyzer::AnalyzerDb;
+use lexiroot_core::{Morpheme, MorphemeKind, MorphemeRef, Provenance, SourceId, WordDecomposition};
+use rusqlite::Connection;
+
+/// Loads every row from a release SQLite file into memory and builds an
+/// `AnalyzerDb`. `analyzer` itself never touches SQLite (see the design
+/// plan) — this is where that boundary lives.
+pub fn load(path: &Path) -> Result<AnalyzerDb> {
+    let conn = Connection::open(path)?;
+
+    let mut morphemes = Vec::new();
+    let mut stmt = conn.prepare("SELECT form, kind, meanings, source, confidence, evidence FROM morphemes")?;
+    let rows = stmt.query_map([], |row| {
+        Ok((
+            row.get::<_, String>(0)?,
+            row.get::<_, String>(1)?,
+            row.get::<_, String>(2)?,
+            row.get::<_, String>(3)?,
+            row.get::<_, f64>(4)?,
+            row.get::<_, String>(5)?,
+        ))
+    })?;
+    for row in rows {
+        let (form, kind, meanings_json, source, confidence, evidence) = row?;
+        let kind = MorphemeKind::parse(&kind).ok_or_else(|| anyhow!("unknown morpheme kind '{kind}'"))?;
+        let source = SourceId::parse(&source).ok_or_else(|| anyhow!("unknown source id '{source}'"))?;
+        let meanings: Vec<String> = serde_json::from_str(&meanings_json)?;
+        let provenance = Provenance::new(source, confidence as f32, evidence)?;
+        morphemes.push(Morpheme::new(form, kind, meanings, provenance));
+    }
+
+    let mut segments_by_word: HashMap<String, Vec<MorphemeRef>> = HashMap::new();
+    let mut stmt =
+        conn.prepare("SELECT word, morpheme_id FROM word_decomposition_segments ORDER BY word, position")?;
+    let rows = stmt.query_map([], |row| Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?)))?;
+    for row in rows {
+        let (word, morpheme_id) = row?;
+        segments_by_word
+            .entry(word)
+            .or_default()
+            .push(MorphemeRef {
+                morpheme_id: lexiroot_core::MorphemeId(morpheme_id),
+            });
+    }
+
+    let mut decompositions = Vec::new();
+    let mut stmt = conn.prepare("SELECT word, source, confidence, evidence FROM word_decompositions")?;
+    let rows = stmt.query_map([], |row| {
+        Ok((
+            row.get::<_, String>(0)?,
+            row.get::<_, String>(1)?,
+            row.get::<_, f64>(2)?,
+            row.get::<_, String>(3)?,
+        ))
+    })?;
+    for row in rows {
+        let (word, source, confidence, evidence) = row?;
+        let source = SourceId::parse(&source).ok_or_else(|| anyhow!("unknown source id '{source}'"))?;
+        let provenance = Provenance::new(source, confidence as f32, evidence)?;
+        let segments = segments_by_word.remove(&word).unwrap_or_default();
+        decompositions.push(WordDecomposition {
+            word,
+            segments,
+            provenance,
+        });
+    }
+
+    Ok(AnalyzerDb::new(morphemes, decompositions))
+}

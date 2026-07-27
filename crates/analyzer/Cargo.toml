@@ -1,0 +1,11 @@
+[package]
+name = "lexiroot-analyzer"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[lib]
+name = "lexiroot_analyzer"
+
+[dependencies]
+lexiroot-core.workspace = true

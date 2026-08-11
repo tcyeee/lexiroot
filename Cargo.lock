@@ -282,8 +282,8 @@ dependencies = [
  "clap",
  "lexiroot-analyzer",
  "lexiroot-core",
+ "lexiroot-store",
  "rusqlite",
- "serde_json",
  "tempfile",
 ]
 
@@ -315,6 +315,29 @@ dependencies = [
  "lexiroot-core",
  "rusqlite",
  "serde",
+ "serde_json",
+]
+
+[[package]]
+name = "lexiroot-store"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "lexiroot-analyzer",
+ "lexiroot-core",
+ "rusqlite",
+ "serde_json",
+]
+
+[[package]]
+name = "lexiroot-web"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "clap",
+ "lexiroot-analyzer",
+ "lexiroot-core",
+ "lexiroot-store",
  "serde_json",
 ]
 

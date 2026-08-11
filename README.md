@@ -316,7 +316,9 @@ lexiroot/
 │   ├── search/         # fast local search/index
 │   ├── ffi/             # mobile bindings (iOS / Android / Flutter)
 │   ├── wasm/           # WebAssembly bindings, split from ffi (different target constraints)
+│   ├── store/          # release SQLite → in-memory AnalyzerDb (native dep, host-side only)
 │   ├── cli/
+│   ├── web/            # local test page + JSON API over the analyzer (dev tool)
 │   │
 │   └── pipeline/       # build-time only, never linked into runtime
 │       ├── importer/    # parses raw sources into structured records
@@ -351,6 +353,31 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     Ok(())
 }
 ```
+
+---
+
+## 本地测试页面
+
+`crates/web` 是一个开发期工具：把 release 数据库加载进内存，起一个本地 HTTP 服务，提供一个网页用来试分词结果。
+
+```bash
+cargo run -p lexiroot-web
+# LexiRoot test page: http://127.0.0.1:8080  (db: data/release/lexiroot-v0.1.sqlite)
+```
+
+可选参数：`--db <path>`、`--host <addr>`、`--port <port>`。
+
+页面支持三种查询（与 CLI 的 `analyze` / `root` / `family` 走同一条查询路径），查询状态写进 URL（`?mode=analyze&q=inspection`），可直接分享或刷新复现。
+
+同样的三个接口也可以直接用 curl 调：
+
+```bash
+curl 'http://127.0.0.1:8080/api/analyze?word=inspection'
+curl 'http://127.0.0.1:8080/api/root?text=spect'
+curl 'http://127.0.0.1:8080/api/family?text=port'
+```
+
+服务端只用 `std`（无 HTTP 框架依赖），默认只监听 loopback：没有鉴权、限流和 TLS，只用于本地测试，不要对外暴露。
 
 ---
 

@@ -1,0 +1,296 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>LexiRoot · 分词测试台</title>
+<style>
+  :root {
+    --bg: #f6f5f2;
+    --surface: #ffffff;
+    --border: #e2ded6;
+    --text: #23201c;
+    --muted: #766f66;
+    --accent: #9a5b2c;
+    --prefix: #2f6f8f;
+    --root: #9a5b2c;
+    --suffix: #4a7a45;
+    --chip: #efece6;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #17161a;
+      --surface: #201f24;
+      --border: #33313a;
+      --text: #ece9e3;
+      --muted: #9b958c;
+      --accent: #d99a63;
+      --prefix: #79b6d4;
+      --root: #d99a63;
+      --suffix: #8fc189;
+      --chip: #2a292f;
+    }
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    padding: 2.5rem 1.25rem 4rem;
+    background: var(--bg);
+    color: var(--text);
+    font: 15px/1.6 -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Hiragino Sans GB", sans-serif;
+  }
+  main { max-width: 720px; margin: 0 auto; }
+  h1 { margin: 0; font-size: 1.6rem; letter-spacing: -0.01em; }
+  h1 span { color: var(--accent); }
+  .sub { margin: 0.25rem 0 1.75rem; color: var(--muted); font-size: 0.9rem; }
+
+  .modes { display: flex; gap: 0.5rem; margin-bottom: 0.75rem; flex-wrap: wrap; }
+  .modes button {
+    padding: 0.4rem 0.85rem; border: 1px solid var(--border); border-radius: 999px;
+    background: var(--surface); color: var(--muted); font: inherit; font-size: 0.85rem; cursor: pointer;
+  }
+  .modes button[aria-pressed="true"] { background: var(--accent); border-color: var(--accent); color: #fff; }
+
+  form { display: flex; gap: 0.5rem; }
+  input {
+    flex: 1; min-width: 0; padding: 0.7rem 0.9rem; font: inherit;
+    border: 1px solid var(--border); border-radius: 10px;
+    background: var(--surface); color: var(--text);
+  }
+  input:focus { outline: 2px solid var(--accent); outline-offset: -1px; }
+  form button {
+    padding: 0.7rem 1.3rem; border: 0; border-radius: 10px;
+    background: var(--accent); color: #fff; font: inherit; cursor: pointer;
+  }
+
+  .examples { margin-top: 0.75rem; display: flex; gap: 0.4rem; flex-wrap: wrap; align-items: center; }
+  .examples span { color: var(--muted); font-size: 0.8rem; }
+  .chip {
+    padding: 0.2rem 0.6rem; border: 1px solid var(--border); border-radius: 999px;
+    background: var(--chip); color: var(--text); font: inherit; font-size: 0.8rem; cursor: pointer;
+  }
+  .chip:hover { border-color: var(--accent); color: var(--accent); }
+
+  .card {
+    margin-top: 1.5rem; padding: 1.25rem; background: var(--surface);
+    border: 1px solid var(--border); border-radius: 14px;
+  }
+  .card h2 { margin: 0 0 0.15rem; font-size: 1.25rem; }
+  .meta { color: var(--muted); font-size: 0.82rem; margin-bottom: 1rem; }
+  .meta code { font-size: 0.8rem; }
+
+  .segments { display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: stretch; }
+  .seg { flex: 1 1 130px; padding: 0.7rem 0.85rem; border: 1px solid var(--border); border-radius: 10px; }
+  .seg .kind { font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.06em; }
+  .seg .form { font-size: 1.1rem; font-weight: 600; margin: 0.1rem 0 0.15rem; }
+  .seg .meaning { color: var(--muted); font-size: 0.85rem; }
+  .seg.prefix { border-left: 3px solid var(--prefix); } .seg.prefix .kind { color: var(--prefix); }
+  .seg.root   { border-left: 3px solid var(--root); }   .seg.root .kind   { color: var(--root); }
+  .seg.suffix { border-left: 3px solid var(--suffix); } .seg.suffix .kind { color: var(--suffix); }
+
+  .evidence {
+    margin-top: 1rem; padding-top: 0.85rem; border-top: 1px dashed var(--border);
+    color: var(--muted); font-size: 0.82rem;
+  }
+  .list { display: flex; flex-wrap: wrap; gap: 0.4rem; margin-top: 0.5rem; }
+  .label { font-size: 0.78rem; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); }
+  ul.meanings { margin: 0.35rem 0 1rem; padding-left: 1.1rem; }
+  .empty, .error { color: var(--muted); }
+  .error { color: #c0522d; }
+  @media (prefers-color-scheme: dark) { .error { color: #e58b62; } }
+</style>
+</head>
+<body>
+<main>
+  <h1>Lexi<span>Root</span></h1>
+  <p class="sub">形态分析测试台 — 直接调用 analyzer，与 CLI 走同一条查询路径。</p>
+
+  <div class="modes" id="modes">
+    <button data-mode="analyze" aria-pressed="true">分析单词</button>
+    <button data-mode="root" aria-pressed="false">查词根</button>
+    <button data-mode="family" aria-pressed="false">同根词族</button>
+  </div>
+
+  <form id="form">
+    <input id="input" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="inspection">
+    <button type="submit">查询</button>
+  </form>
+
+  <div class="examples" id="examples"><span>示例：</span></div>
+
+  <div id="out"></div>
+</main>
+
+<script>
+const EXAMPLES = {
+  analyze: ["inspection", "transportation", "predictable", "unbelievable"],
+  root: ["spect", "port", "dict"],
+  family: ["spect", "port", "act"],
+};
+const PARAM = { analyze: "word", root: "text", family: "text" };
+const KIND_LABEL = { prefix: "前缀 Prefix", root: "词根 Root", suffix: "后缀 Suffix" };
+
+let mode = "analyze";
+const $ = (id) => document.getElementById(id);
+const out = $("out");
+
+function el(tag, className, text) {
+  const node = document.createElement(tag);
+  if (className) node.className = className;
+  if (text !== undefined) node.textContent = text;
+  return node;
+}
+
+function card() {
+  out.replaceChildren();
+  const node = el("div", "card");
+  out.append(node);
+  return node;
+}
+
+function setMode(next) {
+  mode = next;
+  for (const button of $("modes").children) {
+    button.setAttribute("aria-pressed", String(button.dataset.mode === next));
+  }
+  $("input").placeholder = EXAMPLES[next][0];
+  renderExamples();
+}
+
+function renderExamples() {
+  const box = $("examples");
+  box.replaceChildren(el("span", null, "示例："));
+  for (const word of EXAMPLES[mode]) {
+    const chip = el("button", "chip", word);
+    chip.type = "button";
+    chip.onclick = () => run(word);
+    box.append(chip);
+  }
+}
+
+function meaningText(morpheme) {
+  return morpheme.meanings.length ? morpheme.meanings.join("、") : "（无记录义项）";
+}
+
+function metaLine(data) {
+  return `置信度 ${data.confidence.toFixed(2)} · 来源 ${data.source}`;
+}
+
+function segmentsNode(segments) {
+  const box = el("div", "segments");
+  if (!segments.length) {
+    box.append(el("p", "empty", "（无可解析的语素）"));
+    return box;
+  }
+  for (const segment of segments) {
+    const seg = el("div", `seg ${segment.kind}`);
+    seg.append(
+      el("div", "kind", KIND_LABEL[segment.kind] ?? segment.kind),
+      el("div", "form", segment.form),
+      el("div", "meaning", meaningText(segment)),
+    );
+    box.append(seg);
+  }
+  return box;
+}
+
+function wordChips(words, nextMode) {
+  const box = el("div", "list");
+  for (const word of words) {
+    const chip = el("button", "chip", word);
+    chip.type = "button";
+    chip.onclick = () => { setMode(nextMode); $("input").value = word; run(word); };
+    box.append(chip);
+  }
+  return box;
+}
+
+function renderAnalyze(data) {
+  const node = card();
+  node.append(
+    el("h2", null, data.word),
+    el("p", "meta", metaLine(data)),
+    segmentsNode(data.segments),
+    el("p", "evidence", `依据：${data.evidence}`),
+  );
+}
+
+function renderRoot(data) {
+  const node = card();
+  node.append(
+    el("h2", null, data.morpheme.form),
+    el("p", "meta", metaLine(data)),
+    el("div", "label", "义项"),
+  );
+  const list = el("ul", "meanings");
+  const meanings = data.morpheme.meanings.length ? data.morpheme.meanings : ["（无记录义项）"];
+  for (const meaning of meanings) list.append(el("li", null, meaning));
+  node.append(list, el("div", "label", `相关词（${data.related_words.length}）`));
+  node.append(
+    data.related_words.length
+      ? wordChips(data.related_words, "analyze")
+      : el("p", "empty", "本数据集中暂无收录词。"),
+  );
+  node.append(el("p", "evidence", `依据：${data.evidence}`));
+}
+
+function renderFamily(data) {
+  const node = card();
+  node.append(el("h2", null, data.root), el("p", "meta", `共 ${data.words.length} 个同根词`));
+  node.append(
+    data.words.length
+      ? wordChips(data.words.map((word) => word.word), "analyze")
+      : el("p", "empty", "本数据集中暂无该词根的同根词。"),
+  );
+}
+
+function renderError(message) {
+  card().append(el("p", "error", message));
+}
+
+/** Keeps the URL in sync so any query can be linked or reloaded. */
+function syncUrl(value) {
+  const url = new URL(location.href);
+  url.searchParams.set("mode", mode);
+  url.searchParams.set("q", value);
+  history.replaceState(null, "", url);
+}
+
+async function run(rawValue) {
+  const value = (rawValue ?? $("input").value).trim();
+  if (!value) return;
+  $("input").value = value;
+  syncUrl(value);
+
+  const current = mode;
+  card().append(el("p", "empty", "查询中…"));
+  try {
+    const response = await fetch(`/api/${current}?${PARAM[current]}=${encodeURIComponent(value)}`);
+    const data = await response.json();
+    if (!response.ok) {
+      renderError(data.error ?? `请求失败（${response.status}）`);
+      return;
+    }
+    if (current === "analyze") renderAnalyze(data);
+    else if (current === "root") renderRoot(data);
+    else renderFamily(data);
+  } catch (error) {
+    renderError(`请求失败：${error}`);
+  }
+}
+
+$("modes").addEventListener("click", (event) => {
+  const button = event.target.closest("button[data-mode]");
+  if (!button) return;
+  setMode(button.dataset.mode);
+  if ($("input").value.trim()) run();
+});
+$("form").addEventListener("submit", (event) => { event.preventDefault(); run(); });
+
+const initial = new URLSearchParams(location.search);
+const initialMode = initial.get("mode");
+setMode(EXAMPLES[initialMode] ? initialMode : "analyze");
+if (initial.get("q")) run(initial.get("q"));
+</script>
+</body>
+</html>

@@ -1,4 +1,3 @@
-mod db;
 mod format;
 
 use std::path::PathBuf;
@@ -29,7 +28,7 @@ enum Command {
 
 fn main() -> Result<()> {
     let cli = Cli::parse();
-    let analyzer_db = db::load(&cli.db)?;
+    let analyzer_db = lexiroot_store::load(&cli.db)?;
 
     match cli.command {
         Command::Analyze { word } => {

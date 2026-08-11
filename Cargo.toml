@@ -3,7 +3,9 @@ resolver = "3"
 members = [
     "crates/core",
     "crates/analyzer",
+    "crates/store",
     "crates/cli",
+    "crates/web",
     "crates/pipeline/importer",
     "crates/pipeline/exporter",
 ]
@@ -17,6 +19,7 @@ repository = "https://github.com/lexiroot/lexiroot"
 [workspace.dependencies]
 lexiroot-core = { path = "crates/core" }
 lexiroot-analyzer = { path = "crates/analyzer" }
+lexiroot-store = { path = "crates/store" }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 thiserror = "2"

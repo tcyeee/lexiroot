@@ -8,7 +8,8 @@ use rusqlite::Connection;
 
 /// Loads every row from a release SQLite file into memory and builds an
 /// `AnalyzerDb`. `analyzer` itself never touches SQLite (see the design
-/// plan) — this is where that boundary lives.
+/// plan) — this is where that boundary lives. Shared by every host that
+/// needs a loaded database (`cli`, `web`), so the read path exists once.
 pub fn load(path: &Path) -> Result<AnalyzerDb> {
     let conn = Connection::open(path)?;
 

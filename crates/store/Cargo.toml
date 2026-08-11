@@ -1,20 +1,15 @@
 [package]
-name = "lexiroot-cli"
+name = "lexiroot-store"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
 
-[[bin]]
-name = "lexiroot"
-path = "src/main.rs"
+[lib]
+name = "lexiroot_store"
 
 [dependencies]
 lexiroot-core.workspace = true
 lexiroot-analyzer.workspace = true
-lexiroot-store.workspace = true
-clap.workspace = true
-anyhow.workspace = true
-
-[dev-dependencies]
+serde_json.workspace = true
 rusqlite.workspace = true
-tempfile = "3"
+anyhow.workspace = true

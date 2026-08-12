@@ -14,14 +14,18 @@ fn main() -> Result<()> {
     let root = workspace_root();
     let colingoldberg_path = root.join("data/raw/colingoldberg-morphemes/morphemes.json");
     let withenglishwecan_path = root.join("data/raw/withenglishwecan-roots/english.roots.list.build.json");
+    let lexiroot_stems_path = root.join("data/raw/lexiroot-stems/stems.json");
     let output_path = root.join("data/processed.sqlite");
 
     let colingoldberg_json = std::fs::read_to_string(&colingoldberg_path)
         .with_context(|| format!("reading {}", colingoldberg_path.display()))?;
     let withenglishwecan_json = std::fs::read_to_string(&withenglishwecan_path)
         .with_context(|| format!("reading {}", withenglishwecan_path.display()))?;
+    let lexiroot_stems_json = std::fs::read_to_string(&lexiroot_stems_path)
+        .with_context(|| format!("reading {}", lexiroot_stems_path.display()))?;
 
-    let (morphemes, decompositions, summary) = normalize(&colingoldberg_json, &withenglishwecan_json)?;
+    let (morphemes, decompositions, summary) =
+        normalize(&colingoldberg_json, &withenglishwecan_json, &lexiroot_stems_json)?;
 
     sqlite_writer::write_processed_db(&output_path, &morphemes, &decompositions)
         .with_context(|| format!("writing {}", output_path.display()))?;
@@ -29,6 +33,9 @@ fn main() -> Result<()> {
     println!("wrote {}", output_path.display());
     println!("  morphemes:                          {}", summary.morphemes_written);
     println!("  cross-source duplicates skipped:     {}", summary.cross_source_duplicates_skipped);
+    println!("  curated stems added:                 {}", summary.stems_added);
+    println!("  curated stems merged into existing:  {}", summary.stems_enriched);
+    println!("  morphemes carrying variants:         {}", summary.morphemes_with_variants);
     println!("  example words seen:                  {}", summary.example_words_seen);
     println!("  precomputed decompositions:          {}", summary.precomputed_decompositions);
     println!("  skipped (no full segmentation):      {}", summary.examples_skipped_partial_segmentation);

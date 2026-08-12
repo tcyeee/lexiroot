@@ -7,6 +7,10 @@
 # Format:  word <TAB> form:role form:role ...
 # Roles:   prefix | root | suffix
 #
+# Segments are reported under the CANONICAL morpheme id, which is not always
+# how the word spells it: `unbelievable` is `un` + `believe` + `able`, not
+# `believ`. Every id here must resolve in the morpheme table.
+#
 # Lines beginning with GAP are words this pass is known NOT to handle, kept
 # here so the reason stays recorded and so a future pass can measure progress.
 # Their stated cause is in the trailing comment.
@@ -59,21 +63,62 @@ credible	cred:root ible:suffix
 biography	bio:prefix graph:root y:suffix
 philosophy	philo:prefix soph:root y:suffix
 
-# --- Known gaps -------------------------------------------------------------
-# Native Germanic stems are absent from both sources, which are Greek/Latin
-# root dictionaries. No algorithm change reaches these; they need a free-stem
-# word list (see README's data roadmap).
-GAP	unbelievable	un:prefix believe:root able:suffix	# root "believe" absent
-GAP	unhelpful	un:prefix help:root ful:suffix	# root "help" absent
-GAP	friendship	friend:root ship:suffix	# root "friend" absent
-GAP	submarine	sub:prefix marine:root	# root "marine" absent
+# --- Native free stems ------------------------------------------------------
+# Both upstream sources are Greek/Latin BOUND-root dictionaries, so the
+# Germanic core of English was missing outright and nothing built on it could
+# be segmented at all. Supplied by data/raw/lexiroot-stems/stems.json.
 
-# These need BOTH a free stem and an allomorphy rule, and the stem is the
-# binding constraint: `believe`, `happy` and `admit` are all absent from the
-# morpheme table, so an allomorphy layer alone closes none of them. Measured
-# over a 4000-word sample, only 2.6% of failures are even candidates for
-# allomorph rescue, and most of those are false positives (`airport` -> root
-# `aire`, `genius` -> root `geny`). Do the free-stem list first.
-GAP	believable	believe:root able:suffix	# root "believe" absent; also believ- <- believe
-GAP	unhappiness	un:prefix happy:root ness:suffix	# root "happy" absent; also happi- <- happy
-GAP	admission	ad:prefix admit:root ion:suffix	# root "admit" absent; also admiss- <- admit
+unhelpful	un:prefix help:root ful:suffix
+friendship	friend:root ship:suffix
+submarine	sub:prefix marine:root
+thoughtless	thought:root less:suffix
+misunderstand	mis:prefix understand:root
+
+# --- Allomorphy: regular spelling rules -------------------------------------
+# The stem is in the table under its canonical spelling; the word spells it
+# differently because a productive rule applied at the morpheme boundary.
+# Reversed by crates/analyzer/src/ortho.rs, NOT enumerated per stem in the
+# data — these rules apply to stems the table has never seen.
+
+believable	believe:root able:suffix	# silent-e: believ- <- believe
+unbelievable	un:prefix believe:root able:suffix	# silent-e
+usable	use:root able:suffix	# silent-e
+happiness	happy:root ness:suffix	# y->i: happi- <- happy
+unhappiness	un:prefix happy:root ness:suffix	# y->i
+beautiful	beauty:root ful:suffix	# y->i
+running	run:root ing:suffix	# doubling: runn- <- run
+
+# --- Allomorphy: irregular, listed per stem ---------------------------------
+# No spelling rule predicts these, so they live in the stem's `variants`.
+#
+# Note admission is `admit` + `-ion`, NOT `ad-` + `admit` + `-ion` as an
+# earlier draft of this file had it: segments have to tile the word, and
+# `admiss` is the surface spelling of `admit`, with the `ad-` already in it.
+
+admission	admit:root ion:suffix	# variant admiss <- admit
+reception	receive:root ion:suffix	# variant recept <- receive
+
+# --- Known gaps -------------------------------------------------------------
+# Words this pass still cannot reach, kept so the reason stays recorded and a
+# future pass can measure progress.
+#
+# Inflection has no owner in this engine: there is no lemmatization step, so
+# `-s` and `-ed` are deliberately not treated as suffixes (see
+# FINAL_ONE_CHAR_SUFFIXES in segment.rs). These need that step, not more data.
+GAP	helpers	help:root er:suffix s:suffix	# inflection unhandled
+#
+# Ablaut and suppletion rewrite the vowel, not the spelling around it. No
+# orthographic rule reaches them and they are irregular per verb, so they
+# would need a principal-parts table.
+GAP	rebuilt	re:prefix build:root	# ablaut: build ~ built
+GAP	unspoken	un:prefix speak:root en:suffix	# ablaut: speak ~ spok
+#
+# A curated variant losing to a chain of noisy upstream affixes. `deception`
+# parses as dec- + ept + -ion, because ROOT_START pays 8/char to push the root
+# rightward and both `dec` and `ept` are labelled forms in the source data, so
+# the junk parse scores 27 against 14 for the true `deceive` + `-ion`.
+# Its near-twin `reception` only survives because `rec` happens not to be
+# labelled a prefix upstream — the difference is data noise, not analysis.
+# Fixing it means either weighting curated variants above source affixes or
+# pruning the affix inventory; both are their own pass.
+GAP	deception	deceive:root ion:suffix	# variant decept loses to dec- + ept

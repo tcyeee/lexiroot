@@ -10,4 +10,8 @@ pub struct ParsedMorpheme {
     pub meanings: Vec<String>,
     pub evidence: String,
     pub examples: Vec<String>,
+    /// Irregular surface allomorphs declared by the source. Only
+    /// `lexiroot-stems` supplies these; the Greek/Latin root dictionaries
+    /// have no field for them.
+    pub variants: Vec<String>,
 }

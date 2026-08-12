@@ -50,6 +50,7 @@ pub fn parse(json: &str) -> Result<Vec<ParsedMorpheme>> {
             kind: MorphemeKind::Root,
             meanings: entry.meanings,
             examples,
+            variants: Vec::new(),
         });
     }
 

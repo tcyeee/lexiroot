@@ -1,0 +1,17 @@
+{
+  "believe": {
+    "positions": ["root"],
+    "meanings": ["have faith"],
+    "examples": ["believable"]
+  },
+  "hand": {
+    "positions": ["root"],
+    "meanings": ["end of the arm"]
+  },
+  "admit": {
+    "positions": ["root"],
+    "meanings": ["let in"],
+    "variants": ["admiss"],
+    "note": "Latin stem alternation, not predictable from spelling."
+  }
+}

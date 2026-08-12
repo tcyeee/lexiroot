@@ -1,6 +1,7 @@
 use lexiroot_core::{MorphemeId, MorphemeKind, MorphemeRef};
 
-use crate::index::{MorphemeIndex, RootMatch};
+use crate::index::{MorphemeIndex, RootHit, RootMatch};
+use crate::ortho::OrthoRule;
 
 /// Structural bounds on the morpheme grammar `prefix* root suffix*`. Three
 /// of each covers everything English realistically stacks
@@ -29,6 +30,18 @@ const MIN_AFFIX_LEN: usize = 2;
 /// as `apo + physi + s` is the failure mode.
 const FINAL_ONE_CHAR_SUFFIXES: &[&str] = &["y"];
 const MIN_ROOT_LEN: usize = 3;
+/// How short the root *slot* may be before the spelling rules run.
+///
+/// `MIN_ROOT_LEN` is a constraint on the morpheme, but what the search has in
+/// hand is the surface slice, and a spelling rule can have eaten a character
+/// out of it: `usable` leaves only `us` between the word start and `-able`,
+/// yet the morpheme is `use`. Enumerating one character shorter lets
+/// `ortho` put that character back.
+///
+/// A slot this short is accepted *only* when a rule actually fired — see the
+/// guard in `segment_ranked`. Admitting bare two-character roots outright is
+/// what shreds words into fragments.
+const MIN_ELIDED_ROOT_LEN: usize = MIN_ROOT_LEN - 1;
 /// Refuse to enumerate pathologically long inputs.
 const MAX_WORD_LEN: usize = 40;
 
@@ -78,6 +91,13 @@ mod score {
     /// are productive, so the parse has to be good enough to survive both
     /// penalties before shedding a single letter is worth it.
     pub const ONE_CHAR_SUFFIX: i32 = 25;
+    /// Charged when a spelling rule had to be reversed to read the root
+    /// (`believ` -> `believe`). A parse that reads the letters as written is
+    /// always the better explanation of the same slot, so this only has to
+    /// break ties — it must stay well under SHORT_SEGMENT, or a word whose
+    /// real analysis needs a rule (`unhappiness`) would lose to junk that
+    /// needs none.
+    pub const ALLOMORPH: i32 = 12;
 
     /// Parses below this are reported as no analysis at all.
     ///
@@ -93,8 +113,15 @@ mod score {
 /// One candidate parse and the score that ranked it.
 #[derive(Debug, Clone, PartialEq)]
 pub struct Segmentation {
+    /// Segments carry *canonical* morpheme ids, so every id resolves in the
+    /// morpheme table even when the word spells the morpheme differently:
+    /// `unbelievable` yields `un` + `believe` + `able`, not `believ`.
     pub segments: Vec<MorphemeRef>,
     pub score: i32,
+    /// The spelling rule reversed to read the root slot, if any. Purely
+    /// explanatory — it lets callers say *why* the root is spelled
+    /// differently in this word than in the table.
+    pub root_rule: Option<OrthoRule>,
 }
 
 /// Best-scoring segmentation of `word`, or `None` if no parse exists.
@@ -116,14 +143,20 @@ pub fn segment_ranked(word: &str, index: &MorphemeIndex, limit: usize) -> Vec<Se
     let mut candidates: Vec<Segmentation> = Vec::new();
     for (prefix_cuts, root_start) in &prefix_chains {
         for (suffix_cuts, root_end) in &suffix_chains {
-            if *root_end <= *root_start || root_end - root_start < MIN_ROOT_LEN {
+            if *root_end <= *root_start || root_end - root_start < MIN_ELIDED_ROOT_LEN {
                 continue;
             }
             let root: String = chars[*root_start..*root_end].iter().collect();
-            let Some(root_match) = index.match_root(&root) else {
+            // Which spelling rules could have applied depends on what follows
+            // the root, so the suffix chain has to be known first.
+            let next_initial = suffix_cuts.first().map(|c: &Cut| chars[c.start]);
+            // Below MIN_ROOT_LEN the slot is only ever a real root if a
+            // spelling rule restored the missing character, so the index is
+            // told not to offer a literal reading of one.
+            let Some(hit) = index.match_root(&root, next_initial, MIN_ROOT_LEN) else {
                 continue;
             };
-            let candidate = build(&chars, prefix_cuts, (*root_start, &root), suffix_cuts, root_match);
+            let candidate = build(&chars, prefix_cuts, (*root_start, &root), suffix_cuts, hit, index);
             if candidate.score >= score::MIN_ACCEPTABLE {
                 candidates.push(candidate);
             }
@@ -173,10 +206,10 @@ fn affix_chains(chars: &[char], index: &MorphemeIndex, side: Side) -> Vec<(Vec<C
     for _ in 0..max_depth {
         let mut next: Vec<(Vec<Cut>, usize)> = Vec::new();
         for (cuts, pos) in &frontier {
-            // Leave at least MIN_ROOT_LEN characters for the root.
+            // Leave at least a (possibly elided) root's worth of characters.
             let room = match side {
-                Side::Prefix => n.saturating_sub(pos + MIN_ROOT_LEN),
-                Side::Suffix => pos.saturating_sub(MIN_ROOT_LEN),
+                Side::Prefix => n.saturating_sub(pos + MIN_ELIDED_ROOT_LEN),
+                Side::Suffix => pos.saturating_sub(MIN_ELIDED_ROOT_LEN),
             };
             // Only the first suffix stripped is word-final, so only it may be
             // a single character.
@@ -226,32 +259,38 @@ fn build(
     prefix_cuts: &[Cut],
     (root_start, root): (usize, &str),
     suffix_cuts: &[Cut],
-    root_match: RootMatch,
+    root_hit: RootHit,
+    index: &MorphemeIndex,
 ) -> Segmentation {
     let mut segments = Vec::with_capacity(prefix_cuts.len() + suffix_cuts.len() + 1);
     let mut short_segments = 0i32;
 
-    let mut push = |form: &str, role: MorphemeKind, segments: &mut Vec<MorphemeRef>| {
-        let len = form.chars().count();
+    // Scoring reads the *surface* length — how much of the word the segment
+    // actually accounts for — while the id recorded is the canonical
+    // morpheme, which may be spelled differently.
+    let mut push = |surface: &str, id: MorphemeId, role: MorphemeKind, segments: &mut Vec<MorphemeRef>| {
+        let len = surface.chars().count();
         // A word-final one-character suffix is charged ONE_CHAR_SUFFIX
         // instead; charging both would price it out of every parse.
         if len > 1 && len <= MIN_AFFIX_LEN {
             short_segments += 1;
         }
         segments.push(MorphemeRef {
-            morpheme_id: MorphemeId::new(form),
+            morpheme_id: id,
             role,
         });
     };
 
     for cut in prefix_cuts {
-        let form: String = chars[cut.start..cut.start + cut.len].iter().collect();
-        push(&form, MorphemeKind::Prefix, &mut segments);
+        let surface: String = chars[cut.start..cut.start + cut.len].iter().collect();
+        let id = index.canonical_id(&surface);
+        push(&surface, id, MorphemeKind::Prefix, &mut segments);
     }
-    push(root, MorphemeKind::Root, &mut segments);
+    push(root, root_hit.id, MorphemeKind::Root, &mut segments);
     for cut in suffix_cuts {
-        let form: String = chars[cut.start..cut.start + cut.len].iter().collect();
-        push(&form, MorphemeKind::Suffix, &mut segments);
+        let surface: String = chars[cut.start..cut.start + cut.len].iter().collect();
+        let id = index.canonical_id(&surface);
+        push(&surface, id, MorphemeKind::Suffix, &mut segments);
     }
 
     let root_len = root.chars().count();
@@ -265,10 +304,15 @@ fn build(
         - score::EXTRA_PREFIX * extra_prefixes
         - if final_short_root { score::FINAL_SHORT_ROOT } else { 0 }
         - if one_char_suffix { score::ONE_CHAR_SUFFIX } else { 0 }
-        - match root_match {
+        - if root_hit.rule.is_some() { score::ALLOMORPH } else { 0 }
+        - match root_hit.quality {
             RootMatch::Attested => 0,
             RootMatch::AffixOnly => score::AFFIX_ONLY_ROOT,
         };
 
-    Segmentation { segments, score }
+    Segmentation {
+        segments,
+        score,
+        root_rule: root_hit.rule,
+    }
 }

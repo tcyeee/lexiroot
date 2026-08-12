@@ -5,6 +5,11 @@ use serde::{Deserialize, Serialize};
 pub enum SourceId {
     ColinGoldbergMorphemes,
     WithEnglishWeCanRoots,
+    /// LexiRoot's own hand-curated free-stem list. Both upstream datasets are
+    /// Greek/Latin *bound-root* dictionaries, so the native Germanic core of
+    /// English (`help`, `friend`, `believe`) is absent from them entirely and
+    /// has to be supplied here.
+    LexirootStems,
     /// Not read from a source dataset directly; derived at query time by
     /// the analyzer's algorithmic fallback.
     Inferred,
@@ -15,6 +20,7 @@ impl SourceId {
         match self {
             SourceId::ColinGoldbergMorphemes => "colingoldberg_morphemes",
             SourceId::WithEnglishWeCanRoots => "withenglishwecan_roots",
+            SourceId::LexirootStems => "lexiroot_stems",
             SourceId::Inferred => "inferred",
         }
     }
@@ -23,6 +29,7 @@ impl SourceId {
         match s {
             "colingoldberg_morphemes" => Some(SourceId::ColinGoldbergMorphemes),
             "withenglishwecan_roots" => Some(SourceId::WithEnglishWeCanRoots),
+            "lexiroot_stems" => Some(SourceId::LexirootStems),
             "inferred" => Some(SourceId::Inferred),
             _ => None,
         }

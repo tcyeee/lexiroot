@@ -8,7 +8,8 @@ fn build_processed_fixture(path: &std::path::Path) {
         "
         CREATE TABLE morphemes (
             id TEXT PRIMARY KEY, form TEXT NOT NULL, positions TEXT NOT NULL,
-            meanings TEXT NOT NULL, source TEXT NOT NULL, confidence REAL NOT NULL, evidence TEXT NOT NULL
+            meanings TEXT NOT NULL, variants TEXT NOT NULL,
+            source TEXT NOT NULL, confidence REAL NOT NULL, evidence TEXT NOT NULL
         );
         CREATE TABLE word_decompositions (
             word TEXT PRIMARY KEY, source TEXT NOT NULL, confidence REAL NOT NULL, evidence TEXT NOT NULL
@@ -21,12 +22,12 @@ fn build_processed_fixture(path: &std::path::Path) {
     )
     .unwrap();
     conn.execute(
-        "INSERT INTO morphemes VALUES ('in','in','prefix','[\"into\"]','colingoldberg_morphemes',0.95,'fixture')",
+        "INSERT INTO morphemes VALUES ('in','in','prefix','[\"into\"]','[\"im\",\"il\"]','colingoldberg_morphemes',0.95,'fixture')",
         [],
     )
     .unwrap();
     conn.execute(
-        "INSERT INTO morphemes VALUES ('spect','spect','root','[\"look\",\"see\"]','colingoldberg_morphemes',0.95,'fixture')",
+        "INSERT INTO morphemes VALUES ('spect','spect','root','[\"look\",\"see\"]','[]','colingoldberg_morphemes',0.95,'fixture')",
         [],
     )
     .unwrap();
@@ -80,6 +81,12 @@ fn export_preserves_row_contents() {
     let conn = Connection::open(&output).unwrap();
     let morpheme_count: i64 = conn.query_row("SELECT COUNT(*) FROM morphemes", [], |r| r.get(0)).unwrap();
     assert_eq!(morpheme_count, 2);
+    // Allomorphs have to survive the copy: a release database that drops them
+    // silently loses every word whose stem is spelled irregularly.
+    let variants: String = conn
+        .query_row("SELECT variants FROM morphemes WHERE id = 'in'", [], |r| r.get(0))
+        .unwrap();
+    assert_eq!(variants, r#"["im","il"]"#);
     let word: String = conn
         .query_row("SELECT word FROM word_decompositions", [], |r| r.get(0))
         .unwrap();

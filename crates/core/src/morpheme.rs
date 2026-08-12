@@ -146,6 +146,24 @@ pub struct Morpheme {
     pub form: String,
     pub positions: MorphemePositions,
     pub meanings: Vec<String>,
+    /// Surface allomorphs of this morpheme: alternative spellings the form
+    /// takes inside a word, which the segmenter accepts as this morpheme.
+    ///
+    /// Only *irregular* alternations belong here — ones no general rule
+    /// predicts, so they have to be listed: Latin stem alternation
+    /// (`admit` ~ `admiss`, `receive` ~ `recept`) and prefix assimilation
+    /// (`in-` ~ `im-`, `il-`, `ir-`).
+    ///
+    /// Regular English spelling adjustments at a morpheme boundary —
+    /// silent-e deletion (`believe` + `-able` -> `believable`), consonant
+    /// doubling (`run` + `-ing`), `y` -> `i` (`happy` + `-ness`) — are
+    /// deliberately NOT listed. They are productive, so enumerating them
+    /// would mean writing three or four rows for every stem in the table;
+    /// `lexiroot_analyzer::ortho` derives them instead.
+    ///
+    /// Empty for the overwhelming majority of morphemes.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub variants: Vec<String>,
     pub provenance: Provenance,
 }
 
@@ -156,6 +174,16 @@ impl Morpheme {
         meanings: Vec<String>,
         provenance: Provenance,
     ) -> Self {
+        Self::with_variants(form, positions, meanings, Vec::new(), provenance)
+    }
+
+    pub fn with_variants(
+        form: impl Into<String>,
+        positions: MorphemePositions,
+        meanings: Vec<String>,
+        variants: Vec<String>,
+        provenance: Provenance,
+    ) -> Self {
         let form = form.into();
         let id = MorphemeId::new(&form);
         Self {
@@ -163,6 +191,7 @@ impl Morpheme {
             form,
             positions,
             meanings,
+            variants,
             provenance,
         }
     }

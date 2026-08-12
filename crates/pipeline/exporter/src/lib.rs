@@ -9,6 +9,8 @@ CREATE TABLE morphemes (
     form TEXT NOT NULL,
     positions TEXT NOT NULL,
     meanings TEXT NOT NULL,
+    -- JSON array of irregular surface allomorphs; '[]' for most morphemes.
+    variants TEXT NOT NULL,
     source TEXT NOT NULL,
     confidence REAL NOT NULL,
     evidence TEXT NOT NULL
@@ -44,10 +46,11 @@ pub fn export(input_path: &Path, output_path: &Path) -> Result<()> {
 
     let tx = output.transaction()?;
     {
-        let mut select_morphemes =
-            input.prepare("SELECT id, form, positions, meanings, source, confidence, evidence FROM morphemes ORDER BY id")?;
+        let mut select_morphemes = input.prepare(
+            "SELECT id, form, positions, meanings, variants, source, confidence, evidence FROM morphemes ORDER BY id",
+        )?;
         let mut insert_morpheme = tx.prepare(
-            "INSERT INTO morphemes (id, form, positions, meanings, source, confidence, evidence) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
+            "INSERT INTO morphemes (id, form, positions, meanings, variants, source, confidence, evidence) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)",
         )?;
         let rows = select_morphemes.query_map([], |row| {
             Ok((
@@ -56,13 +59,15 @@ pub fn export(input_path: &Path, output_path: &Path) -> Result<()> {
                 row.get::<_, String>(2)?,
                 row.get::<_, String>(3)?,
                 row.get::<_, String>(4)?,
-                row.get::<_, f64>(5)?,
-                row.get::<_, String>(6)?,
+                row.get::<_, String>(5)?,
+                row.get::<_, f64>(6)?,
+                row.get::<_, String>(7)?,
             ))
         })?;
         for row in rows {
-            let (id, form, positions, meanings, source, confidence, evidence) = row?;
-            insert_morpheme.execute(params![id, form, positions, meanings, source, confidence, evidence])?;
+            let (id, form, positions, meanings, variants, source, confidence, evidence) = row?;
+            insert_morpheme
+                .execute(params![id, form, positions, meanings, variants, source, confidence, evidence])?;
         }
 
         let mut select_words =

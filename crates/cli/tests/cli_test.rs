@@ -8,7 +8,8 @@ fn build_fixture_db(path: &std::path::Path) {
         "
         CREATE TABLE morphemes (
             id TEXT PRIMARY KEY, form TEXT NOT NULL, positions TEXT NOT NULL,
-            meanings TEXT NOT NULL, source TEXT NOT NULL, confidence REAL NOT NULL, evidence TEXT NOT NULL
+            meanings TEXT NOT NULL, variants TEXT NOT NULL,
+            source TEXT NOT NULL, confidence REAL NOT NULL, evidence TEXT NOT NULL
         );
         CREATE TABLE word_decompositions (
             word TEXT PRIMARY KEY, source TEXT NOT NULL, confidence REAL NOT NULL, evidence TEXT NOT NULL
@@ -17,8 +18,10 @@ fn build_fixture_db(path: &std::path::Path) {
             word TEXT NOT NULL, position INTEGER NOT NULL, morpheme_id TEXT NOT NULL,
             role TEXT NOT NULL, PRIMARY KEY (word, position)
         );
-        INSERT INTO morphemes VALUES ('in','in','prefix','[\"into\",\"not\"]','colingoldberg_morphemes',0.95,'fixture entry ''in''');
-        INSERT INTO morphemes VALUES ('spect','spect','root','[\"look\",\"see\"]','colingoldberg_morphemes',0.95,'fixture entry ''spect''');
+        INSERT INTO morphemes VALUES ('in','in','prefix','[\"into\",\"not\"]','[]','colingoldberg_morphemes',0.95,'fixture entry ''in''');
+        INSERT INTO morphemes VALUES ('spect','spect','root','[\"look\",\"see\"]','[]','colingoldberg_morphemes',0.95,'fixture entry ''spect''');
+        INSERT INTO morphemes VALUES ('believe','believe','root','[\"have faith\"]','[]','lexiroot_stems',0.95,'fixture entry ''believe''');
+        INSERT INTO morphemes VALUES ('able','able','suffix','[\"capable of\"]','[]','colingoldberg_morphemes',0.95,'fixture entry ''able''');
         INSERT INTO word_decompositions VALUES ('inspect','colingoldberg_morphemes',0.95,'source-listed example word, segmented into: in + spect');
         INSERT INTO word_decomposition_segments VALUES ('inspect', 0, 'in', 'prefix');
         INSERT INTO word_decomposition_segments VALUES ('inspect', 1, 'spect', 'root');
@@ -62,6 +65,23 @@ fn analyze_algorithmic_fallback_for_unlisted_word() {
     let output = lexiroot(&db_path).args(["analyze", "zzznotaword"]).output().unwrap();
     assert!(!output.status.success());
     assert!(String::from_utf8_lossy(&output.stderr).contains("no analysis found"));
+}
+
+/// End to end over the real read path: `believable` is in no precomputed
+/// table, and the letters in its root slot (`believ`) are in no morpheme
+/// table either. Reaching `believe` needs the loader to carry the row, the
+/// index to hold the stem, and `ortho` to put the `e` back.
+#[test]
+fn analyze_reverses_a_spelling_rule_to_reach_the_stem() {
+    let dir = tempfile::tempdir().unwrap();
+    let db_path = dir.path().join("release.sqlite");
+    build_fixture_db(&db_path);
+
+    let output = lexiroot(&db_path).args(["analyze", "believable"]).output().unwrap();
+    assert!(output.status.success(), "stderr: {}", String::from_utf8_lossy(&output.stderr));
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(stdout.contains("believe = have faith"), "got: {stdout}");
+    assert!(stdout.contains("able = capable of"), "got: {stdout}");
 }
 
 #[test]

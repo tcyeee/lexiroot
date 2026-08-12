@@ -72,6 +72,7 @@ pub fn parse(json: &str) -> Result<Vec<ParsedMorpheme>> {
                 meanings: entry.meaning.clone(),
                 evidence: format!("colingoldberg/morphemes entry '{key}'"),
                 examples: entry.examples.clone(),
+                variants: Vec::new(),
             });
         }
     }

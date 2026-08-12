@@ -16,25 +16,28 @@ pub fn load(path: &Path) -> Result<AnalyzerDb> {
     let conn = Connection::open(path)?;
 
     let mut morphemes = Vec::new();
-    let mut stmt =
-        conn.prepare("SELECT form, positions, meanings, source, confidence, evidence FROM morphemes")?;
+    let mut stmt = conn.prepare(
+        "SELECT form, positions, meanings, variants, source, confidence, evidence FROM morphemes",
+    )?;
     let rows = stmt.query_map([], |row| {
         Ok((
             row.get::<_, String>(0)?,
             row.get::<_, String>(1)?,
             row.get::<_, String>(2)?,
             row.get::<_, String>(3)?,
-            row.get::<_, f64>(4)?,
-            row.get::<_, String>(5)?,
+            row.get::<_, String>(4)?,
+            row.get::<_, f64>(5)?,
+            row.get::<_, String>(6)?,
         ))
     })?;
     for row in rows {
-        let (form, positions, meanings_json, source, confidence, evidence) = row?;
+        let (form, positions, meanings_json, variants_json, source, confidence, evidence) = row?;
         let positions = MorphemePositions::parse(&positions)?;
         let source = SourceId::parse(&source).ok_or_else(|| anyhow!("unknown source id '{source}'"))?;
         let meanings: Vec<String> = serde_json::from_str(&meanings_json)?;
+        let variants: Vec<String> = serde_json::from_str(&variants_json)?;
         let provenance = Provenance::new(source, confidence as f32, evidence)?;
-        morphemes.push(Morpheme::new(form, positions, meanings, provenance));
+        morphemes.push(Morpheme::with_variants(form, positions, meanings, variants, provenance));
     }
 
     let mut segments_by_word: HashMap<String, Vec<MorphemeRef>> = HashMap::new();

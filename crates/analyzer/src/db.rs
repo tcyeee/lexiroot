@@ -3,7 +3,7 @@ use std::collections::HashMap;
 use lexiroot_core::{Morpheme, MorphemeId, Provenance, SourceId, WordDecomposition};
 
 use crate::index::MorphemeIndex;
-use crate::segment::segment;
+use crate::segment::segment_ranked;
 
 pub struct RootInfo<'a> {
     pub morpheme: &'a Morpheme,
@@ -52,14 +52,22 @@ impl AnalyzerDb {
             return Some(d.clone());
         }
 
-        let segments = segment(word, &self.index)?;
-        let forms: Vec<&str> = segments
+        let parse = segment_ranked(word, &self.index, 1).into_iter().next()?;
+        let forms: Vec<&str> = parse
+            .segments
             .iter()
             .filter_map(|s| self.index.get(&s.morpheme_id))
             .map(|m| m.form.as_str())
             .collect();
+        // Naming the rule matters here: the forms below are canonical, so
+        // without it the evidence claims a root the word does not visibly
+        // contain (`believe` for `unbelievable`) and reads like a bug.
+        let spelling = match parse.root_rule {
+            Some(rule) => format!(", after reversing {} at the root boundary", rule.as_str()),
+            None => String::new(),
+        };
         let evidence = format!(
-            "inferred by stripping known affixes around a matched root: {}",
+            "inferred by stripping known affixes around a matched root: {}{spelling}",
             forms.join(" + ")
         );
         let provenance = Provenance::new(SourceId::Inferred, 0.5, evidence)
@@ -67,7 +75,7 @@ impl AnalyzerDb {
 
         Some(WordDecomposition {
             word: word.to_string(),
-            segments,
+            segments: parse.segments,
             provenance,
         })
     }

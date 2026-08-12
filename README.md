@@ -119,6 +119,45 @@ Suffix:
 
 ---
 
+### Spelling Changes at Morpheme Boundaries
+
+English rewrites the stem when it attaches an affix. `believe` + `-able` is
+spelled `believable`, `happy` + `-ness` is `happiness`, `run` + `-ing` is
+`running`. A segmenter that tiles a word with literal substrings finds nothing
+in any of them: the letters sitting in the root slot (`believ`, `happi`,
+`runn`) are not the letters the morpheme table holds.
+
+LexiRoot handles this in two places, split by whether a rule can predict the
+change:
+
+| | mechanism | where | examples |
+|---|---|---|---|
+| **Regular** | derived by rule | `analyzer::ortho` | silent-e deletion, consonant doubling, `y` → `i` |
+| **Irregular** | listed per morpheme | `Morpheme::variants` | `admit` ~ `admiss`, `receive` ~ `recept` |
+
+The split matters. Regular changes are *productive* — they apply to stems the
+database has never seen — so listing them per stem would mean three or four
+dead rows each and would still miss anything new. Irregular alternation is not
+predictable from spelling at all, so no rule reaches it and it has to be
+written down.
+
+```text
+unbelievable
+
+un- + believe + -able      # root slot reads "believ"; silent-e restored
+```
+
+Segments are always reported under the **canonical** morpheme id, never the
+surface spelling, so every id in a decomposition resolves in the morpheme
+table:
+
+```rust
+db.analyze("unhappiness")?;   // un : prefix, happy : root, ness : suffix
+db.analyze("admission")?;     // admit : root, ion : suffix
+```
+
+---
+
 ### Root Lookup
 
 ```rust
@@ -236,7 +275,22 @@ Runtime crates (`core`, `analyzer`, `graph`, `search`) carry zero native depende
 
 Every piece of data should be traceable back to reliable sources.
 
-Examples include:
+Currently loaded:
+
+| source | what it supplies |
+|---|---|
+| `colingoldberg-morphemes` | Greek/Latin bound roots and affixes (primary) |
+| `withenglishwecan-roots` | Greek/Latin roots (secondary; merged, primary wins on conflict) |
+| `lexiroot-stems` | **ours** — native free stems and irregular allomorphs |
+
+The third exists because the first two are *bound-root* dictionaries. They are
+good at `spect`, `port` and `struct` — forms that never stand alone as words —
+and contain essentially none of the Germanic core of English. The consequence
+was total rather than partial: `believe`, `help`, `friend` and `break` were all
+absent, so nothing built on them could be segmented at all, however good the
+algorithm. See `data/raw/lexiroot-stems/README.md` for the curation rules.
+
+Planned:
 
 - Wiktionary
 - MorphoLex
@@ -327,6 +381,10 @@ lexiroot/
 │
 ├── data/
 │   ├── raw/
+│   │   ├── colingoldberg-morphemes/  # upstream: Greek/Latin bound roots
+│   │   ├── withenglishwecan-roots/   # upstream: Greek/Latin roots
+│   │   └── lexiroot-stems/           # ours: native free stems + irregular allomorphs
+│   ├── gold/               # hand-checked segmentations; the segmenter's regression set
 │   ├── processed.sqlite   # working DB (SQLite, same format family as release)
 │   └── release/            # read-only release SQLite files
 │

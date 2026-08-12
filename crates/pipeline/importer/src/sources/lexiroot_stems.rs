@@ -23,7 +23,7 @@ struct RawEntry {
     _note: Option<String>,
 }
 
-/// Parses LexiRoot's own `data/raw/lexiroot-stems/stems.json`: the curated
+/// Parses LexiRoot's own `data/sources/lexiroot-stems.json`: the curated
 /// free-stem list that supplies the native Germanic core both upstream
 /// Greek/Latin root dictionaries omit entirely.
 ///

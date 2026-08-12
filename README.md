@@ -288,14 +288,20 @@ good at `spect`, `port` and `struct` — forms that never stand alone as words �
 and contain essentially none of the Germanic core of English. The consequence
 was total rather than partial: `believe`, `help`, `friend` and `break` were all
 absent, so nothing built on them could be segmented at all, however good the
-algorithm. See `data/raw/lexiroot-stems/README.md` for the curation rules.
+algorithm. See [`data/README.md`](data/README.md) for each dataset's origin and
+the curation rules.
 
-Planned:
+Planned — **每一个都要先确认许可证再导入**。项目整体以 MIT 分发，而下面这些源没有一个
+是 MIT，导入前需要逐个核实条款，必要时改为运行时可选下载而不是打进 release 库：
 
-- Wiktionary
-- MorphoLex
-- Etymonline
-- Open linguistic datasets
+| 候选源 | 需要确认的点 |
+|---|---|
+| Wiktionary | 内容是 CC BY-SA / GFDL 双重授权，share-alike 是传染性的：衍生数据很可能必须同样以 CC BY-SA 发布，与「release 库整体 MIT」冲突 |
+| MorphoLex | 学术数据集，需确认是否带 NonCommercial / ShareAlike 限制 |
+| Etymonline | 商业站点内容，默认全部权利保留，除非拿到明确授权否则不能打包分发 |
+| 其他开放语言学数据集 | 逐个核实 |
+
+判断标准：只要某个源的条款会波及整个 release 库的授权，就不进 `data/sources/`。
 
 ---
 
@@ -380,12 +386,12 @@ lexiroot/
 │       └── exporter/    # writes validated records to release SQLite
 │
 ├── data/
-│   ├── raw/
-│   │   ├── colingoldberg-morphemes/  # upstream: Greek/Latin bound roots
-│   │   ├── withenglishwecan-roots/   # upstream: Greek/Latin roots
-│   │   └── lexiroot-stems/           # ours: native free stems + irregular allomorphs
+│   ├── sources/            # importer inputs, one file per source, hand-editable
+│   │   ├── colingoldberg-morphemes.json  # Greek/Latin bound roots and affixes
+│   │   ├── withenglishwecan-roots.json   # Greek/Latin roots
+│   │   └── lexiroot-stems.json           # native free stems + irregular allomorphs
 │   ├── gold/               # hand-checked segmentations; the segmenter's regression set
-│   ├── processed.sqlite   # working DB (SQLite, same format family as release)
+│   ├── build/              # intermediate `processed.sqlite` (gitignored)
 │   └── release/            # read-only release SQLite files
 │
 ├── docs/
@@ -497,9 +503,28 @@ The goal is to provide a reliable foundation that developers can build upon, ena
 
 ---
 
+## Acknowledgements
+
+LexiRoot 的词素数据以下面这些开源项目为起点。它们省下了从零手工整理数千条词根的
+工作量，让最小闭环得以在几周内跑通而不是几个月。数据在本项目中经过修改和扩充，
+以适配分词器的需要；感谢原作者以宽松许可证公开这些成果。
+
+| 项目 | 提供了什么 | 许可证 |
+|---|---|---|
+| [colingoldberg/morphemes](https://github.com/colingoldberg/morphemes) | 2435 条带词义的前缀 / 词根 / 后缀 | MIT |
+| [WithEnglishWeCan/generated-english-roots-list](https://github.com/WithEnglishWeCan/generated-english-roots-list) | 1061 条希腊语 / 拉丁语词根 | MIT |
+
+完整许可证文本见 [`THIRD_PARTY_NOTICES.md`](THIRD_PARTY_NOTICES.md)，各数据集的出处
+和修改说明见 [`data/README.md`](data/README.md)。
+
+---
+
 ## License
 
-MIT
+代码与数据均以 MIT 许可证发布，见 [`LICENSE`](LICENSE)。
+
+`data/sources/` 下的数据集以两个 MIT 项目为起点并经本项目修改，原始版权声明保留在
+[`THIRD_PARTY_NOTICES.md`](THIRD_PARTY_NOTICES.md)。
 
 ---
 
@@ -508,7 +533,7 @@ MIT
 ### 架构师视角
 
 - 数据流水线（Raw Sources → Import/Validation → PostgreSQL 开发态 → SQLite/Binary 发布态 → Runtime）思路合理，crate 拆分符合 Rust workspace 惯例。
-- **待确认风险**：Wiktionary / MorphoLex / Etymonline 的数据许可证差异很大，能否合法打包分发到"immutable release"需要在动工前确认，否则可能卡死 v1.0。（仍未解决，需项目启动前查清楚）
+- ~~**待确认风险**：Wiktionary / MorphoLex / Etymonline 的数据许可证差异很大，能否合法打包分发到"immutable release"需要在动工前确认，否则可能卡死 v1.0。~~ → v0.1 通过只选 MIT 数据源规避：当前三个源全部 MIT 或本项目原创，整个项目可以干净地以 MIT 分发。**但风险对 planned 源仍然成立**——上面那三个的许可证需要在导入前逐个确认，见 Source Driven 一节的说明。
 - ~~发布数据库缺版本 / 迁移策略~~ → 已改为全程只用 SQLite（开发态 `processed.sqlite`、发布态 `release/`），去掉 Postgres 这一层，减少一套 schema 维护和一个外部依赖。
 - v0.1 就铺开 9 个 crate 偏重，建议先用 core + cli 跑通最小闭环再拆分。（仍建议保留，crate 数量本身没变，但已按运行时/构建时拆成 `pipeline/` 和顶层 runtime crate 两组，边界更清楚）
 - ~~三端 FFI + WASM 工程量大~~ → 已将 `ffi`（移动端）和 `wasm`（WebAssembly）拆成两个独立 crate，并明确 runtime crate 零原生依赖的约束，降低交叉编译风险。

@@ -12,7 +12,7 @@ fn workspace_root() -> PathBuf {
 
 fn main() -> Result<()> {
     let root = workspace_root();
-    let input_path = root.join("data/processed.sqlite");
+    let input_path = root.join("data/build/processed.sqlite");
     let output_dir = root.join("data/release");
     let output_path = output_dir.join("lexiroot-v0.1.sqlite");
 

@@ -12,10 +12,10 @@ fn workspace_root() -> PathBuf {
 
 fn main() -> Result<()> {
     let root = workspace_root();
-    let colingoldberg_path = root.join("data/raw/colingoldberg-morphemes/morphemes.json");
-    let withenglishwecan_path = root.join("data/raw/withenglishwecan-roots/english.roots.list.build.json");
-    let lexiroot_stems_path = root.join("data/raw/lexiroot-stems/stems.json");
-    let output_path = root.join("data/processed.sqlite");
+    let colingoldberg_path = root.join("data/sources/colingoldberg-morphemes.json");
+    let withenglishwecan_path = root.join("data/sources/withenglishwecan-roots.json");
+    let lexiroot_stems_path = root.join("data/sources/lexiroot-stems.json");
+    let output_path = root.join("data/build/processed.sqlite");
 
     let colingoldberg_json = std::fs::read_to_string(&colingoldberg_path)
         .with_context(|| format!("reading {}", colingoldberg_path.display()))?;
@@ -26,6 +26,10 @@ fn main() -> Result<()> {
 
     let (morphemes, decompositions, summary) =
         normalize(&colingoldberg_json, &withenglishwecan_json, &lexiroot_stems_json)?;
+
+    if let Some(parent) = output_path.parent() {
+        std::fs::create_dir_all(parent)?;
+    }
 
     sqlite_writer::write_processed_db(&output_path, &morphemes, &decompositions)
         .with_context(|| format!("writing {}", output_path.display()))?;

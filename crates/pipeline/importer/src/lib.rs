@@ -6,7 +6,9 @@ use std::collections::BTreeMap;
 
 use anyhow::Result;
 use lexiroot_analyzer::{segment, MorphemeIndex};
-use lexiroot_core::{Morpheme, MorphemeId, MorphemeRef, Provenance, SourceId, WordDecomposition};
+use lexiroot_core::{
+    Morpheme, MorphemeId, MorphemePositions, MorphemeRef, Provenance, SourceId, WordDecomposition,
+};
 
 use parsed::ParsedMorpheme;
 
@@ -25,7 +27,32 @@ fn dedup_sorted(mut items: Vec<String>) -> Vec<String> {
     items
 }
 
-fn merge_into(existing: &mut ParsedMorpheme, incoming: &ParsedMorpheme) {
+/// All sightings of one form, collapsed. `positions` accumulates every slot
+/// any source attested the form in.
+struct Merged {
+    form: String,
+    positions: MorphemePositions,
+    meanings: Vec<String>,
+    evidence: String,
+    examples: Vec<String>,
+    source: SourceId,
+}
+
+impl Merged {
+    fn new(pm: ParsedMorpheme, source: SourceId) -> Self {
+        Self {
+            form: pm.form,
+            positions: MorphemePositions::from_kind(pm.kind),
+            meanings: pm.meanings,
+            evidence: pm.evidence,
+            examples: pm.examples,
+            source,
+        }
+    }
+}
+
+fn merge_into(existing: &mut Merged, incoming: &ParsedMorpheme) {
+    existing.positions.insert(incoming.kind);
     existing.meanings.extend(incoming.meanings.iter().cloned());
     existing.meanings = dedup_sorted(std::mem::take(&mut existing.meanings));
     existing.examples.extend(incoming.examples.iter().cloned());
@@ -46,39 +73,53 @@ pub fn normalize(
     let primary = sources::colingoldberg::parse(colingoldberg_json)?;
     let secondary = sources::withenglishwecan::parse(withenglishwecan_json)?;
 
-    let mut by_id: BTreeMap<MorphemeId, (ParsedMorpheme, SourceId)> = BTreeMap::new();
+    let mut by_id: BTreeMap<MorphemeId, Merged> = BTreeMap::new();
     let mut duplicates_skipped = 0usize;
 
+    // Keyed on form alone, so a form the source lists under several `loc`
+    // values becomes one morpheme carrying all of them rather than two or
+    // three morphemes each missing the others' positions.
     for pm in primary {
-        let id = MorphemeId::new(pm.kind, &pm.form);
+        let id = MorphemeId::new(&pm.form);
         match by_id.get_mut(&id) {
-            Some((existing, _)) => merge_into(existing, &pm),
+            Some(existing) => merge_into(existing, &pm),
             None => {
-                by_id.insert(id, (pm, SourceId::ColinGoldbergMorphemes));
+                by_id.insert(id, Merged::new(pm, SourceId::ColinGoldbergMorphemes));
             }
         }
     }
     for pm in secondary {
-        let id = MorphemeId::new(pm.kind, &pm.form);
-        if by_id.contains_key(&id) {
+        let id = MorphemeId::new(&pm.form);
+        if let Some(existing) = by_id.get_mut(&id) {
+            // The primary source stays authoritative for meanings and
+            // provenance, but a root sighting here is still evidence the
+            // form can head a word, so the position is worth keeping.
+            existing.positions.insert(pm.kind);
             duplicates_skipped += 1;
             continue;
         }
-        by_id.insert(id, (pm, SourceId::WithEnglishWeCanRoots));
+        by_id.insert(id, Merged::new(pm, SourceId::WithEnglishWeCanRoots));
     }
 
     let mut examples_by_word: BTreeMap<String, (String, SourceId)> = BTreeMap::new();
-    for (pm, source) in by_id.values() {
-        for example in &pm.examples {
+    for merged in by_id.values() {
+        for example in &merged.examples {
             let key = example.to_lowercase();
-            examples_by_word.entry(key).or_insert_with(|| (example.clone(), *source));
+            examples_by_word
+                .entry(key)
+                .or_insert_with(|| (example.clone(), merged.source));
         }
     }
 
     let mut morphemes = Vec::with_capacity(by_id.len());
-    for (_, (pm, source)) in by_id {
-        let provenance = Provenance::new(source, 0.95, pm.evidence)?;
-        morphemes.push(Morpheme::new(pm.form, pm.kind, pm.meanings, provenance));
+    for (_, merged) in by_id {
+        let provenance = Provenance::new(merged.source, 0.95, merged.evidence)?;
+        morphemes.push(Morpheme::new(
+            merged.form,
+            merged.positions,
+            merged.meanings,
+            provenance,
+        ));
     }
     morphemes.sort_unstable_by(|a, b| a.id.cmp(&b.id));
 

@@ -35,6 +35,13 @@ impl AnalyzerDb {
         self.index.get(id)
     }
 
+    /// The loaded morpheme index, for callers that want to run segmentation
+    /// directly (ranked candidates, scoring diagnostics) rather than through
+    /// `analyze`'s precomputed-first path.
+    pub fn index(&self) -> &MorphemeIndex {
+        &self.index
+    }
+
     /// Tier 1: exact hit in the precomputed (source-listed) table.
     /// Tier 2: live algorithmic fallback, tagged `Inferred` with lower
     /// confidence and evidence naming the matched affixes.
@@ -72,12 +79,12 @@ impl AnalyzerDb {
     pub fn root(&self, text: &str) -> Option<RootInfo<'_>> {
         let text_lc = text.to_lowercase();
         let root_id = self.index.root_id(&text_lc)?;
-        let morpheme = self.index.get(root_id)?;
+        let morpheme = self.index.get(&root_id)?;
 
         let mut related_words: Vec<&str> = self
             .precomputed
             .values()
-            .filter(|d| d.segments.iter().any(|s| &s.morpheme_id == root_id))
+            .filter(|d| d.segments.iter().any(|s| s.morpheme_id == root_id))
             .map(|d| d.word.as_str())
             .collect();
         related_words.sort_unstable();
@@ -98,7 +105,7 @@ impl AnalyzerDb {
         let mut words: Vec<&WordDecomposition> = self
             .precomputed
             .values()
-            .filter(|d| d.segments.iter().any(|s| &s.morpheme_id == root_id))
+            .filter(|d| d.segments.iter().any(|s| s.morpheme_id == root_id))
             .collect();
         words.sort_unstable_by(|a, b| a.word.cmp(&b.word));
         words

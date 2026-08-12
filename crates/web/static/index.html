@@ -183,9 +183,11 @@ function segmentsNode(segments) {
     return box;
   }
   for (const segment of segments) {
-    const seg = el("div", `seg ${segment.kind}`);
+    // `role` is the slot this morpheme fills in this word; `positions` (also
+    // on the payload) is every slot the form is attested in.
+    const seg = el("div", `seg ${segment.role}`);
     seg.append(
-      el("div", "kind", KIND_LABEL[segment.kind] ?? segment.kind),
+      el("div", "kind", KIND_LABEL[segment.role] ?? segment.role),
       el("div", "form", segment.form),
       el("div", "meaning", meaningText(segment)),
     );

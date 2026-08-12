@@ -1,0 +1,79 @@
+# Hand-checked segmentations, used as a regression set for the segmenter.
+#
+# Deliberately NOT derived from `word_decompositions`: that table is itself
+# produced by running `segment()` over the sources' example words, so scoring
+# against it would only measure the segmenter's agreement with itself.
+#
+# Format:  word <TAB> form:role form:role ...
+# Roles:   prefix | root | suffix
+#
+# Lines beginning with GAP are words this pass is known NOT to handle, kept
+# here so the reason stays recorded and so a future pass can measure progress.
+# Their stated cause is in the trailing comment.
+
+inspection	in:prefix spect:root ion:suffix
+predict	pre:prefix dict:root
+predictable	pre:prefix dict:root able:suffix
+transport	trans:prefix port:root
+transportation	trans:prefix port:root ation:suffix
+export	ex:prefix port:root
+import	im:prefix port:root
+portable	port:root able:suffix
+reconstruction	re:prefix con:prefix struct:root ion:suffix
+construct	con:prefix struct:root
+destruct	de:prefix struct:root
+instruction	in:prefix struct:root ion:suffix
+incredible	in:prefix cred:root ible:suffix
+audible	aud:root ible:suffix
+visible	vis:root ible:suffix
+invisible	in:prefix vis:root ible:suffix
+revision	re:prefix vis:root ion:suffix
+television	tele:prefix vis:root ion:suffix
+provision	pro:prefix vis:root ion:suffix
+telegraph	tele:prefix graph:root
+photograph	photo:prefix graph:root
+autograph	auto:prefix graph:root
+geographic	geo:prefix graph:root ic:suffix
+microscope	micro:prefix scope:root
+thermometer	thermo:prefix meter:root
+subscription	sub:prefix script:root ion:suffix
+description	de:prefix script:root ion:suffix
+prescription	pre:prefix script:root ion:suffix
+manuscript	manu:prefix script:root
+interrupt	inter:prefix rupt:root
+conductor	con:prefix duct:root or:suffix
+introduction	intro:prefix duct:root ion:suffix
+reduction	re:prefix duct:root ion:suffix
+production	pro:prefix duct:root ion:suffix
+projection	pro:prefix ject:root ion:suffix
+rejection	re:prefix ject:root ion:suffix
+injection	in:prefix ject:root ion:suffix
+benevolent	bene:prefix vol:root ent:suffix
+biologist	bio:prefix log:root ist:suffix
+chronological	chrono:prefix log:root ical:suffix
+astronomer	astro:prefix nom:root er:suffix
+respect	re:prefix spect:root
+inspector	in:prefix spect:root or:suffix
+dictate	dict:root ate:suffix
+credible	cred:root ible:suffix
+biography	bio:prefix graph:root y:suffix
+philosophy	philo:prefix soph:root y:suffix
+
+# --- Known gaps -------------------------------------------------------------
+# Native Germanic stems are absent from both sources, which are Greek/Latin
+# root dictionaries. No algorithm change reaches these; they need a free-stem
+# word list (see README's data roadmap).
+GAP	unbelievable	un:prefix believe:root able:suffix	# root "believe" absent
+GAP	unhelpful	un:prefix help:root ful:suffix	# root "help" absent
+GAP	friendship	friend:root ship:suffix	# root "friend" absent
+GAP	submarine	sub:prefix marine:root	# root "marine" absent
+
+# These need BOTH a free stem and an allomorphy rule, and the stem is the
+# binding constraint: `believe`, `happy` and `admit` are all absent from the
+# morpheme table, so an allomorphy layer alone closes none of them. Measured
+# over a 4000-word sample, only 2.6% of failures are even candidates for
+# allomorph rescue, and most of those are false positives (`airport` -> root
+# `aire`, `genius` -> root `geny`). Do the free-stem list first.
+GAP	believable	believe:root able:suffix	# root "believe" absent; also believ- <- believe
+GAP	unhappiness	un:prefix happy:root ness:suffix	# root "happy" absent; also happi- <- happy
+GAP	admission	ad:prefix admit:root ion:suffix	# root "admit" absent; also admiss- <- admit

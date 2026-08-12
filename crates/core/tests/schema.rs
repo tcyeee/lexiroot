@@ -1,4 +1,7 @@
-use lexiroot_core::{Morpheme, MorphemeId, MorphemeKind, Provenance, SourceId, WordDecomposition, MorphemeRef};
+use lexiroot_core::{
+    Morpheme, MorphemeId, MorphemeKind, MorphemePositions, Provenance, SourceId, WordDecomposition,
+    MorphemeRef,
+};
 
 fn source_listed(evidence: &str) -> Provenance {
     Provenance::new(SourceId::ColinGoldbergMorphemes, 0.95, evidence).unwrap()
@@ -18,17 +21,34 @@ fn provenance_accepts_boundary_confidence() {
 
 #[test]
 fn morpheme_id_is_deterministic_and_lowercased() {
-    let a = MorphemeId::new(MorphemeKind::Root, "Spect");
-    let b = MorphemeId::new(MorphemeKind::Root, "spect");
+    let a = MorphemeId::new("Spect");
+    let b = MorphemeId::new("spect");
     assert_eq!(a, b);
-    assert_eq!(a.as_str(), "root:spect");
+    assert_eq!(a.as_str(), "spect");
+}
+
+/// A form attested in several positions is one morpheme carrying all of
+/// them, not several morphemes each missing the others.
+#[test]
+fn positions_merge_and_serialize_canonically() {
+    let mut positions = MorphemePositions::from_kind(MorphemeKind::Suffix);
+    positions.insert(MorphemeKind::Prefix);
+    assert!(positions.contains(MorphemeKind::Prefix));
+    assert!(positions.contains(MorphemeKind::Suffix));
+    assert!(!positions.contains(MorphemeKind::Root));
+    // Always prefix/root/suffix order, whatever order they were inserted in,
+    // so release databases stay byte-reproducible.
+    assert_eq!(positions.to_storage_string(), "prefix|suffix");
+    assert_eq!(MorphemePositions::parse("prefix|suffix").unwrap(), positions);
+    assert!(MorphemePositions::parse("").is_err());
+    assert!(MorphemePositions::parse("infix").is_err());
 }
 
 #[test]
 fn morpheme_serde_round_trip() {
     let m = Morpheme::new(
         "spect",
-        MorphemeKind::Root,
+        MorphemePositions::from_kind(MorphemeKind::Root),
         vec!["look".into(), "see".into()],
         source_listed("colingoldberg/morphemes entry 'spect'"),
     );
@@ -39,15 +59,17 @@ fn morpheme_serde_round_trip() {
 
 #[test]
 fn word_decomposition_serde_round_trip() {
-    let root_id = MorphemeId::new(MorphemeKind::Root, "spect");
+    let root_id = MorphemeId::new("spect");
     let decomposition = WordDecomposition {
         word: "inspect".into(),
         segments: vec![
             MorphemeRef {
-                morpheme_id: MorphemeId::new(MorphemeKind::Prefix, "in"),
+                morpheme_id: MorphemeId::new("in"),
+                role: MorphemeKind::Prefix,
             },
             MorphemeRef {
                 morpheme_id: root_id,
+                role: MorphemeKind::Root,
             },
         ],
         provenance: source_listed("example word for 'spect' per colingoldberg/morphemes"),

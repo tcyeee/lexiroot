@@ -7,7 +7,7 @@ const SCHEMA: &str = "
 CREATE TABLE morphemes (
     id TEXT PRIMARY KEY,
     form TEXT NOT NULL,
-    kind TEXT NOT NULL CHECK (kind IN ('prefix','root','suffix')),
+    positions TEXT NOT NULL,
     meanings TEXT NOT NULL,
     source TEXT NOT NULL,
     confidence REAL NOT NULL,
@@ -23,6 +23,7 @@ CREATE TABLE word_decomposition_segments (
     word TEXT NOT NULL REFERENCES word_decompositions(word),
     position INTEGER NOT NULL,
     morpheme_id TEXT NOT NULL REFERENCES morphemes(id),
+    role TEXT NOT NULL CHECK (role IN ('prefix','root','suffix')),
     PRIMARY KEY (word, position)
 );
 ";
@@ -44,9 +45,9 @@ pub fn export(input_path: &Path, output_path: &Path) -> Result<()> {
     let tx = output.transaction()?;
     {
         let mut select_morphemes =
-            input.prepare("SELECT id, form, kind, meanings, source, confidence, evidence FROM morphemes ORDER BY id")?;
+            input.prepare("SELECT id, form, positions, meanings, source, confidence, evidence FROM morphemes ORDER BY id")?;
         let mut insert_morpheme = tx.prepare(
-            "INSERT INTO morphemes (id, form, kind, meanings, source, confidence, evidence) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
+            "INSERT INTO morphemes (id, form, positions, meanings, source, confidence, evidence) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
         )?;
         let rows = select_morphemes.query_map([], |row| {
             Ok((
@@ -60,8 +61,8 @@ pub fn export(input_path: &Path, output_path: &Path) -> Result<()> {
             ))
         })?;
         for row in rows {
-            let (id, form, kind, meanings, source, confidence, evidence) = row?;
-            insert_morpheme.execute(params![id, form, kind, meanings, source, confidence, evidence])?;
+            let (id, form, positions, meanings, source, confidence, evidence) = row?;
+            insert_morpheme.execute(params![id, form, positions, meanings, source, confidence, evidence])?;
         }
 
         let mut select_words =
@@ -83,16 +84,21 @@ pub fn export(input_path: &Path, output_path: &Path) -> Result<()> {
         }
 
         let mut select_segments = input
-            .prepare("SELECT word, position, morpheme_id FROM word_decomposition_segments ORDER BY word, position")?;
+            .prepare("SELECT word, position, morpheme_id, role FROM word_decomposition_segments ORDER BY word, position")?;
         let mut insert_segment = tx.prepare(
-            "INSERT INTO word_decomposition_segments (word, position, morpheme_id) VALUES (?1, ?2, ?3)",
+            "INSERT INTO word_decomposition_segments (word, position, morpheme_id, role) VALUES (?1, ?2, ?3, ?4)",
         )?;
         let rows = select_segments.query_map([], |row| {
-            Ok((row.get::<_, String>(0)?, row.get::<_, i64>(1)?, row.get::<_, String>(2)?))
+            Ok((
+                row.get::<_, String>(0)?,
+                row.get::<_, i64>(1)?,
+                row.get::<_, String>(2)?,
+                row.get::<_, String>(3)?,
+            ))
         })?;
         for row in rows {
-            let (word, position, morpheme_id) = row?;
-            insert_segment.execute(params![word, position, morpheme_id])?;
+            let (word, position, morpheme_id, role) = row?;
+            insert_segment.execute(params![word, position, morpheme_id, role])?;
         }
     }
     tx.commit()?;

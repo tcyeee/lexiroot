@@ -23,5 +23,13 @@
     "forms": [{"root": "-able", "form": "able", "loc": "suffix"}],
     "meaning": ["worthy"],
     "examples": []
+  },
+  "hand-entry": {
+    "forms": [
+      {"root": "-hand", "form": "hand", "loc": "prefix"},
+      {"root": "-hand", "form": "hand", "loc": "suffix"}
+    ],
+    "meaning": ["hand"],
+    "examples": []
   }
 }

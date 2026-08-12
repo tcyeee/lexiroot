@@ -8,7 +8,7 @@ pub const SCHEMA: &str = "
 CREATE TABLE morphemes (
     id TEXT PRIMARY KEY,
     form TEXT NOT NULL,
-    kind TEXT NOT NULL CHECK (kind IN ('prefix','root','suffix')),
+    positions TEXT NOT NULL,
     meanings TEXT NOT NULL,
     source TEXT NOT NULL,
     confidence REAL NOT NULL,
@@ -24,6 +24,7 @@ CREATE TABLE word_decomposition_segments (
     word TEXT NOT NULL REFERENCES word_decompositions(word),
     position INTEGER NOT NULL,
     morpheme_id TEXT NOT NULL REFERENCES morphemes(id),
+    role TEXT NOT NULL CHECK (role IN ('prefix','root','suffix')),
     PRIMARY KEY (word, position)
 );
 ";
@@ -41,13 +42,13 @@ pub fn write_processed_db(path: &Path, morphemes: &[Morpheme], decompositions: &
     let tx = conn.transaction()?;
     {
         let mut insert_morpheme = tx.prepare(
-            "INSERT INTO morphemes (id, form, kind, meanings, source, confidence, evidence) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
+            "INSERT INTO morphemes (id, form, positions, meanings, source, confidence, evidence) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
         )?;
         for m in morphemes {
             insert_morpheme.execute(rusqlite::params![
                 m.id.as_str(),
                 m.form,
-                m.kind.as_str(),
+                m.positions.to_storage_string(),
                 serde_json::to_string(&m.meanings)?,
                 m.provenance.source.as_str(),
                 m.provenance.confidence(),
@@ -59,7 +60,7 @@ pub fn write_processed_db(path: &Path, morphemes: &[Morpheme], decompositions: &
             "INSERT INTO word_decompositions (word, source, confidence, evidence) VALUES (?1, ?2, ?3, ?4)",
         )?;
         let mut insert_segment = tx.prepare(
-            "INSERT INTO word_decomposition_segments (word, position, morpheme_id) VALUES (?1, ?2, ?3)",
+            "INSERT INTO word_decomposition_segments (word, position, morpheme_id, role) VALUES (?1, ?2, ?3, ?4)",
         )?;
         for d in decompositions {
             insert_word.execute(rusqlite::params![
@@ -69,7 +70,12 @@ pub fn write_processed_db(path: &Path, morphemes: &[Morpheme], decompositions: &
                 d.provenance.evidence,
             ])?;
             for (position, seg) in d.segments.iter().enumerate() {
-                insert_segment.execute(rusqlite::params![d.word, position as i64, seg.morpheme_id.as_str()])?;
+                insert_segment.execute(rusqlite::params![
+                    d.word,
+                    position as i64,
+                    seg.morpheme_id.as_str(),
+                    seg.role.as_str(),
+                ])?;
             }
         }
     }

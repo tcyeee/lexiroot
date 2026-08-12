@@ -7,25 +7,26 @@ fn build_processed_fixture(path: &std::path::Path) {
     conn.execute_batch(
         "
         CREATE TABLE morphemes (
-            id TEXT PRIMARY KEY, form TEXT NOT NULL, kind TEXT NOT NULL,
+            id TEXT PRIMARY KEY, form TEXT NOT NULL, positions TEXT NOT NULL,
             meanings TEXT NOT NULL, source TEXT NOT NULL, confidence REAL NOT NULL, evidence TEXT NOT NULL
         );
         CREATE TABLE word_decompositions (
             word TEXT PRIMARY KEY, source TEXT NOT NULL, confidence REAL NOT NULL, evidence TEXT NOT NULL
         );
         CREATE TABLE word_decomposition_segments (
-            word TEXT NOT NULL, position INTEGER NOT NULL, morpheme_id TEXT NOT NULL, PRIMARY KEY (word, position)
+            word TEXT NOT NULL, position INTEGER NOT NULL, morpheme_id TEXT NOT NULL,
+            role TEXT NOT NULL, PRIMARY KEY (word, position)
         );
         ",
     )
     .unwrap();
     conn.execute(
-        "INSERT INTO morphemes VALUES ('prefix:in','in','prefix','[\"into\"]','colingoldberg_morphemes',0.95,'fixture')",
+        "INSERT INTO morphemes VALUES ('in','in','prefix','[\"into\"]','colingoldberg_morphemes',0.95,'fixture')",
         [],
     )
     .unwrap();
     conn.execute(
-        "INSERT INTO morphemes VALUES ('root:spect','spect','root','[\"look\",\"see\"]','colingoldberg_morphemes',0.95,'fixture')",
+        "INSERT INTO morphemes VALUES ('spect','spect','root','[\"look\",\"see\"]','colingoldberg_morphemes',0.95,'fixture')",
         [],
     )
     .unwrap();
@@ -35,12 +36,12 @@ fn build_processed_fixture(path: &std::path::Path) {
     )
     .unwrap();
     conn.execute(
-        "INSERT INTO word_decomposition_segments VALUES ('inspect', 0, 'prefix:in')",
+        "INSERT INTO word_decomposition_segments VALUES ('inspect', 0, 'in', 'prefix')",
         [],
     )
     .unwrap();
     conn.execute(
-        "INSERT INTO word_decomposition_segments VALUES ('inspect', 1, 'root:spect')",
+        "INSERT INTO word_decomposition_segments VALUES ('inspect', 1, 'spect', 'root')",
         [],
     )
     .unwrap();

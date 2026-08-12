@@ -2,24 +2,31 @@
 //! prints as text, so the page and the CLI can be compared directly.
 
 use lexiroot_analyzer::AnalyzerDb;
-use lexiroot_core::{Morpheme, WordDecomposition};
+use lexiroot_core::{Morpheme, MorphemeKind, WordDecomposition};
 use serde_json::{json, Value};
 
 fn morpheme_json(m: &Morpheme) -> Value {
     json!({
         "id": m.id.as_str(),
         "form": m.form,
-        "kind": m.kind.as_str(),
+        "positions": m.positions.iter().map(|k| k.as_str()).collect::<Vec<_>>(),
         "meanings": m.meanings,
     })
+}
+
+fn segment_json(m: &Morpheme, role: MorphemeKind) -> Value {
+    let mut value = morpheme_json(m);
+    // `positions` is everything the form is attested in; `role` is the one
+    // it fills in this word. Clients should label segments by `role`.
+    value["role"] = json!(role.as_str());
+    value
 }
 
 fn decomposition_json(db: &AnalyzerDb, d: &WordDecomposition) -> Value {
     let segments: Vec<Value> = d
         .segments
         .iter()
-        .filter_map(|s| db.get_morpheme(&s.morpheme_id))
-        .map(morpheme_json)
+        .filter_map(|s| db.get_morpheme(&s.morpheme_id).map(|m| segment_json(m, s.role)))
         .collect();
 
     json!({

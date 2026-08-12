@@ -1,6 +1,8 @@
 use lexiroot_core::MorphemeKind;
 
-/// A single morpheme as read from one source, before cross-source merging.
+/// A single morpheme *sighting* as read from one source, before merging.
+/// `kind` is the one position this sighting attests; sightings of the same
+/// form are merged into a `MorphemePositions` set by `normalize`.
 #[derive(Debug, Clone)]
 pub struct ParsedMorpheme {
     pub form: String,

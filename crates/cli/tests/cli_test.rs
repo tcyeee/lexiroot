@@ -7,20 +7,21 @@ fn build_fixture_db(path: &std::path::Path) {
     conn.execute_batch(
         "
         CREATE TABLE morphemes (
-            id TEXT PRIMARY KEY, form TEXT NOT NULL, kind TEXT NOT NULL,
+            id TEXT PRIMARY KEY, form TEXT NOT NULL, positions TEXT NOT NULL,
             meanings TEXT NOT NULL, source TEXT NOT NULL, confidence REAL NOT NULL, evidence TEXT NOT NULL
         );
         CREATE TABLE word_decompositions (
             word TEXT PRIMARY KEY, source TEXT NOT NULL, confidence REAL NOT NULL, evidence TEXT NOT NULL
         );
         CREATE TABLE word_decomposition_segments (
-            word TEXT NOT NULL, position INTEGER NOT NULL, morpheme_id TEXT NOT NULL, PRIMARY KEY (word, position)
+            word TEXT NOT NULL, position INTEGER NOT NULL, morpheme_id TEXT NOT NULL,
+            role TEXT NOT NULL, PRIMARY KEY (word, position)
         );
-        INSERT INTO morphemes VALUES ('prefix:in','in','prefix','[\"into\",\"not\"]','colingoldberg_morphemes',0.95,'fixture entry ''in''');
-        INSERT INTO morphemes VALUES ('root:spect','spect','root','[\"look\",\"see\"]','colingoldberg_morphemes',0.95,'fixture entry ''spect''');
+        INSERT INTO morphemes VALUES ('in','in','prefix','[\"into\",\"not\"]','colingoldberg_morphemes',0.95,'fixture entry ''in''');
+        INSERT INTO morphemes VALUES ('spect','spect','root','[\"look\",\"see\"]','colingoldberg_morphemes',0.95,'fixture entry ''spect''');
         INSERT INTO word_decompositions VALUES ('inspect','colingoldberg_morphemes',0.95,'source-listed example word, segmented into: in + spect');
-        INSERT INTO word_decomposition_segments VALUES ('inspect', 0, 'prefix:in');
-        INSERT INTO word_decomposition_segments VALUES ('inspect', 1, 'root:spect');
+        INSERT INTO word_decomposition_segments VALUES ('inspect', 0, 'in', 'prefix');
+        INSERT INTO word_decomposition_segments VALUES ('inspect', 1, 'spect', 'root');
         ",
     )
     .unwrap();

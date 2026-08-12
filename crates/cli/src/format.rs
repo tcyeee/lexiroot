@@ -18,21 +18,18 @@ pub fn format_analysis(db: &AnalyzerDb, decomposition: &WordDecomposition) -> St
         decomposition.provenance.source.as_str()
     ));
 
-    for kind in [MorphemeKind::Prefix, MorphemeKind::Root, MorphemeKind::Suffix] {
-        let label = match kind {
+    // Printed in word order and labelled by the role each morpheme plays in
+    // *this* word — a form can be a prefix here and a root elsewhere.
+    for seg in &decomposition.segments {
+        let Some(m) = db.get_morpheme(&seg.morpheme_id) else {
+            continue;
+        };
+        let label = match seg.role {
             MorphemeKind::Prefix => "Prefix",
             MorphemeKind::Root => "Root",
             MorphemeKind::Suffix => "Suffix",
         };
-        for seg in &decomposition.segments {
-            let Some(m) = db.get_morpheme(&seg.morpheme_id) else {
-                continue;
-            };
-            if m.kind != kind {
-                continue;
-            }
-            out.push_str(&format!("\n{label}:\n  {} = {}\n", m.form, meanings_line(m)));
-        }
+        out.push_str(&format!("\n{label}:\n  {} = {}\n", m.form, meanings_line(m)));
     }
 
     out.push_str(&format!("\nEvidence: {}\n", decomposition.provenance.evidence));

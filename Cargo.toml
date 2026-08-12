@@ -14,7 +14,7 @@ members = [
 version = "0.1.0"
 edition = "2024"
 license = "MIT"
-repository = "https://github.com/lexiroot/lexiroot"
+repository = "https://github.com/tcyeee/lexiroot"
 
 [workspace.dependencies]
 lexiroot-core = { path = "crates/core" }

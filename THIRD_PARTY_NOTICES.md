@@ -1,9 +1,10 @@
 # Third-Party Notices
 
-LexiRoot 的部分数据集以下列第三方项目为起点，之后由本项目自行修改和扩充。修改后的
-数据位于 `data/sources/`，其出处与内容见 [`data/README.md`](data/README.md)。
+LexiRoot 的词素数据集以下列第三方项目为起点，之后由本项目自行修改、扩充，并与本项目
+原创的词干数据合并成单一文件 `data/sources/morphemes.json`。合并后不再逐条标记来源，
+但下列许可证声明适用于这份衍生数据的相应部分——这也是这两个 MIT 项目所要求的全部。
 
-以下许可证声明同时适用于这些衍生数据。
+数据集的内容与策展规则见 [`data/README.md`](data/README.md)。
 
 ---
 
@@ -12,7 +13,8 @@ LexiRoot 的部分数据集以下列第三方项目为起点，之后由本项�
 https://github.com/colingoldberg/morphemes
 
 起点：该仓库 `master` 分支 commit `846aa473cb27916f2c3acedb52d98f3a2e2a6572` 的
-`data/morphemes.json`，现为本项目的 `data/sources/colingoldberg-morphemes.json`。
+`data/morphemes.json`（2,435 条，展开为 3,762 个词素）。经本项目修改后并入
+`data/sources/morphemes.json`。
 
 ```
 MIT License
@@ -45,7 +47,8 @@ SOFTWARE.
 https://github.com/WithEnglishWeCan/generated-english-roots-list
 
 起点：该仓库 `master` 分支 commit `bf26e3842137d8f7bbc6e69ef39c05b43e3a22a6` 的
-`english.roots.list.build.json`，现为本项目的 `data/sources/withenglishwecan-roots.json`。
+`english.roots.list.build.json`（1,061 条，净增 102 个词素，其余与上一个源重复）。
+经本项目修改后并入 `data/sources/morphemes.json`。
 
 该仓库没有单独的 LICENSE 文件，其 README 声明 "Licensed under MIT."，即以 MIT 许可证
 授权，完整条款同上。

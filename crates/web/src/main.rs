@@ -20,7 +20,7 @@ const INDEX_HTML: &str = include_str!("../static/index.html");
 #[command(name = "lexiroot-web", about = "Serve a local test page for the LexiRoot analyzer.")]
 struct Cli {
     /// Path to a release SQLite database.
-    #[arg(long, default_value = "data/release/lexiroot-v0.1.sqlite")]
+    #[arg(long, default_value = lexiroot_core::RELEASE_DB_PATH)]
     db: PathBuf,
 
     /// Address to bind. Keep it on loopback unless you know what you're doing.

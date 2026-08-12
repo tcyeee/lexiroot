@@ -1,79 +1,51 @@
-use lexiroot_core::{MorphemeId, MorphemeKind, SourceId};
+use lexiroot_core::{MorphemeId, MorphemeKind};
 use lexiroot_pipeline_importer::normalize;
 
-const COLINGOLDBERG_FIXTURE: &str = include_str!("fixtures/colingoldberg.json");
-const WITHENGLISHWECAN_FIXTURE: &str = include_str!("fixtures/withenglishwecan.json");
-const LEXIROOT_STEMS_FIXTURE: &str = include_str!("fixtures/lexiroot_stems.json");
+/// A miniature of the real dataset. `admit`'s meanings are deliberately not in
+/// alphabetical order — see `meanings_keep_the_curators_order`.
+const DATASET: &str = r#"{
+  "able":    { "positions": ["suffix"], "meanings": ["capable of", "worthy"], "examples": ["believable"] },
+  "admit":   { "positions": ["root"], "meanings": ["let in", "confess"], "variants": ["admiss"] },
+  "believe": { "positions": ["root"], "meanings": ["accept as true", "have faith in"], "examples": ["believable"] },
+  "hand":    { "positions": ["prefix", "root", "suffix"], "meanings": ["hand"] },
+  "in":      { "positions": ["prefix"], "meanings": ["into", "not"], "examples": ["inspect"] },
+  "spect":   { "positions": ["root"], "meanings": ["look", "see"], "examples": ["inspect", "spectrogram"] }
+}"#;
 
 fn normalized() -> (
     Vec<lexiroot_core::Morpheme>,
     Vec<lexiroot_core::WordDecomposition>,
     lexiroot_pipeline_importer::ImportSummary,
 ) {
-    normalize(COLINGOLDBERG_FIXTURE, WITHENGLISHWECAN_FIXTURE, LEXIROOT_STEMS_FIXTURE).unwrap()
+    normalize(DATASET).unwrap()
 }
 
 #[test]
-fn normalize_merges_dedupes_and_precomputes_decompositions() {
+fn normalize_emits_every_entry_and_precomputes_decompositions() {
     let (morphemes, decompositions, summary) = normalized();
 
-    // 8 distinct forms: in, spect, vis, able, hand, duc from the two
-    // dictionaries, plus believe and admit from the curated stem list.
-    // "vis" from the secondary source collides with the primary and is
-    // skipped, not counted as a 9th; "hand" from the stem list merges into
-    // the existing entry rather than being added.
-    assert_eq!(summary.morphemes_written, 8);
-    assert_eq!(morphemes.len(), 8);
-    assert_eq!(summary.cross_source_duplicates_skipped, 1);
-    assert_eq!(summary.stems_added, 2);
-    assert_eq!(summary.stems_enriched, 1);
+    assert_eq!(summary.morphemes_written, 6);
+    assert_eq!(morphemes.len(), 6);
 
-    // Within-source duplicate "able" entries (able-a, able-b) merge their
-    // meanings rather than overwriting.
-    let able = morphemes
-        .iter()
-        .find(|m| m.id == MorphemeId::new("able"))
-        .expect("able should exist");
-    assert_eq!(able.meanings, vec!["capable of".to_string(), "worthy".to_string()]);
-
-    // The Tier 0 fix: one entry listing "hand" under two `loc` values becomes
-    // a single morpheme carrying both positions, not two morphemes each
-    // missing the other's. The curated stem list then adds the root position
-    // the dictionaries never recorded — that enrichment is the whole point of
-    // applying it as a merge rather than skipping it as a duplicate.
+    // One entry declaring three positions stays one morpheme carrying all
+    // three, not three morphemes each missing the others'. That collapse is
+    // what lets the segmenter decide, per word, which slot a form fills.
     let hand = morphemes
         .iter()
         .find(|m| m.id == MorphemeId::new("hand"))
         .expect("hand should exist");
-    assert!(hand.positions.contains(MorphemeKind::Prefix));
-    assert!(hand.positions.contains(MorphemeKind::Suffix));
-    assert!(hand.positions.contains(MorphemeKind::Root));
     assert_eq!(hand.positions.to_storage_string(), "prefix|root|suffix");
 
-    // Cross-source duplicate "vis" keeps the primary source's meaning, not
-    // the secondary's.
-    let vis = morphemes
-        .iter()
-        .find(|m| m.id == MorphemeId::new("vis"))
-        .expect("vis should exist");
-    assert_eq!(vis.meanings, vec!["see".to_string()]);
-    assert_eq!(vis.provenance.source, SourceId::ColinGoldbergMorphemes);
-
-    // "duc" only exists in the secondary source and should still be added
-    // since there's no collision.
-    assert!(morphemes.iter().any(|m| m.id == MorphemeId::new("duc")));
-
-    // "believable", "duc", "induc", "inspect", "invis" all fully segment
-    // against the merged morpheme table and get precomputed; "spectrogram"
-    // doesn't (no suffix "-rogram"/"-gram" is known) and is skipped rather
-    // than recorded with a wrong decomposition.
-    assert_eq!(summary.example_words_seen, 6);
-    assert_eq!(summary.precomputed_decompositions, 5);
+    // `believable`, `inspect` and `spectrogram` are all listed as examples;
+    // the first two segment with full coverage, `spectrogram` does not (no
+    // `-rogram` or `-gram` suffix is known) and is skipped rather than
+    // recorded with a wrong decomposition.
+    assert_eq!(summary.example_words_seen, 3);
+    assert_eq!(summary.precomputed_decompositions, 2);
     assert_eq!(summary.examples_skipped_partial_segmentation, 1);
 
     let words: Vec<&str> = decompositions.iter().map(|d| d.word.as_str()).collect();
-    assert_eq!(words, vec!["believable", "duc", "induc", "inspect", "invis"]);
-    assert!(!words.contains(&"spectrogram"));
+    assert_eq!(words, vec!["believable", "inspect"]);
 
     let inspect = decompositions.iter().find(|d| d.word == "inspect").unwrap();
     assert_eq!(inspect.segments.len(), 2);
@@ -81,18 +53,28 @@ fn normalize_merges_dedupes_and_precomputes_decompositions() {
     assert_eq!(inspect.segments[0].role, MorphemeKind::Prefix);
     assert_eq!(inspect.segments[1].morpheme_id, MorphemeId::new("spect"));
     assert_eq!(inspect.segments[1].role, MorphemeKind::Root);
-    assert_eq!(inspect.provenance.source, SourceId::ColinGoldbergMorphemes);
-
-    let duc = decompositions.iter().find(|d| d.word == "duc").unwrap();
-    assert_eq!(duc.segments.len(), 1);
-    assert_eq!(duc.segments[0].role, MorphemeKind::Root);
-    assert_eq!(duc.provenance.source, SourceId::WithEnglishWeCanRoots);
 }
 
-/// Irregular allomorphs survive the merge onto the `Morpheme` the importer
-/// emits — the field the release schema's `variants` column is written from.
+/// Meanings are ordered most-central-first by the curator, so the importer
+/// must not reorder them. It used to: the dataset was assembled from upstream
+/// files recording one row per (form, position) sighting, and folding those
+/// sightings deduplicated — and so alphabetized — the meanings. Sorting
+/// `admit` here would silently promote "confess" over "let in".
 #[test]
-fn curated_variants_reach_the_emitted_morpheme() {
+fn meanings_keep_the_curators_order() {
+    let (morphemes, _, _) = normalized();
+
+    let admit = morphemes
+        .iter()
+        .find(|m| m.id == MorphemeId::new("admit"))
+        .expect("admit should exist");
+    assert_eq!(admit.meanings, vec!["let in".to_string(), "confess".to_string()]);
+}
+
+/// Irregular allomorphs survive onto the `Morpheme` the importer emits — the
+/// field the release schema's `variants` column is written from.
+#[test]
+fn variants_reach_the_emitted_morpheme() {
     let (morphemes, _, summary) = normalized();
 
     let admit = morphemes
@@ -100,7 +82,6 @@ fn curated_variants_reach_the_emitted_morpheme() {
         .find(|m| m.id == MorphemeId::new("admit"))
         .expect("admit should exist");
     assert_eq!(admit.variants, vec!["admiss".to_string()]);
-    assert_eq!(admit.provenance.source, SourceId::LexirootStems);
 
     // Everything else carries none — variants are for irregular alternation
     // only, so this stays near-empty as the table grows.
@@ -132,4 +113,21 @@ fn precomputed_decomposition_uses_the_canonical_id_after_a_spelling_rule() {
         segments,
         vec![("believe", MorphemeKind::Root), ("able", MorphemeKind::Suffix)]
     );
+}
+
+/// The dataset is ours, so a malformed entry is a typo worth failing on rather
+/// than dropping silently.
+#[test]
+fn malformed_entries_fail_the_import() {
+    let unknown_position = r#"{ "spect": { "positions": ["stem"], "meanings": ["look"] } }"#;
+    assert!(normalize(unknown_position).is_err());
+
+    let no_positions = r#"{ "spect": { "positions": [], "meanings": ["look"] } }"#;
+    assert!(normalize(no_positions).is_err());
+
+    // Ids are lowercased forms, so two keys differing only in case would
+    // collide and one would silently win.
+    let case_collision =
+        r#"{ "Spect": { "positions": ["root"], "meanings": ["look"] }, "spect": { "positions": ["root"], "meanings": ["see"] } }"#;
+    assert!(normalize(case_collision).is_err());
 }

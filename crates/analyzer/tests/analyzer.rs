@@ -1,6 +1,6 @@
 use lexiroot_analyzer::{segment, AnalyzerDb, MorphemeIndex};
 use lexiroot_core::{
-    Morpheme, MorphemeId, MorphemeKind, MorphemePositions, MorphemeRef, Provenance, SourceId,
+    Morpheme, MorphemeId, MorphemeKind, MorphemePositions, MorphemeRef, Provenance,
     WordDecomposition,
 };
 
@@ -17,7 +17,7 @@ fn morpheme(form: &str, kinds: &[MorphemeKind], meaning: &str) -> Morpheme {
         form,
         positions(kinds),
         vec![meaning.to_string()],
-        Provenance::new(SourceId::ColinGoldbergMorphemes, 0.95, format!("fixture entry '{form}'")).unwrap(),
+        Provenance::new(0.95, format!("fixture entry '{form}'")).unwrap(),
     )
 }
 
@@ -27,7 +27,7 @@ fn morpheme_with_variants(form: &str, kinds: &[MorphemeKind], meaning: &str, var
         positions(kinds),
         vec![meaning.to_string()],
         variants.iter().map(|v| v.to_string()).collect(),
-        Provenance::new(SourceId::LexirootStems, 0.95, format!("fixture entry '{form}'")).unwrap(),
+        Provenance::new(0.95, format!("fixture entry '{form}'")).unwrap(),
     )
 }
 
@@ -80,12 +80,7 @@ fn fixture_db() -> AnalyzerDb {
             seg("believe", MorphemeKind::Root),
             seg("able", MorphemeKind::Suffix),
         ],
-        provenance: Provenance::new(
-            SourceId::ColinGoldbergMorphemes,
-            0.95,
-            "example word for 'believe' per fixture",
-        )
-        .unwrap(),
+        provenance: Provenance::new(0.95, "example word for 'believe' per fixture").unwrap(),
     }];
 
     AnalyzerDb::new(fixture_morphemes(), precomputed)
@@ -101,11 +96,10 @@ fn forms(word: &str, index: &MorphemeIndex) -> Option<Vec<(String, MorphemeKind)
 }
 
 #[test]
-fn tier1_returns_precomputed_source_listed_decomposition() {
+fn tier1_returns_precomputed_decomposition() {
     let db = fixture_db();
     let result = db.analyze("unbelievable").expect("should hit precomputed table");
     assert_eq!(result.segments.len(), 3);
-    assert_eq!(result.provenance.source, SourceId::ColinGoldbergMorphemes);
     assert_eq!(result.provenance.confidence(), 0.95);
 }
 
@@ -124,7 +118,6 @@ fn tier2_falls_back_to_live_algorithmic_segmentation() {
     // boundaries, so tier 2 should segment it live.
     let result = db.analyze("unbreakable").expect("should segment via algorithmic fallback");
     assert_eq!(result.segments.len(), 3);
-    assert_eq!(result.provenance.source, SourceId::Inferred);
     assert_eq!(result.provenance.confidence(), 0.5);
     assert!(result.provenance.evidence.contains("break"));
 }

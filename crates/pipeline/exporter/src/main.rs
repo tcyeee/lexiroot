@@ -1,6 +1,7 @@
 use std::path::{Path, PathBuf};
 
 use anyhow::{Context, Result};
+use lexiroot_core::{BUILD_DB_PATH, RELEASE_DB_PATH};
 use lexiroot_pipeline_exporter::export;
 
 fn workspace_root() -> PathBuf {
@@ -12,11 +13,12 @@ fn workspace_root() -> PathBuf {
 
 fn main() -> Result<()> {
     let root = workspace_root();
-    let input_path = root.join("data/build/processed.sqlite");
-    let output_dir = root.join("data/release");
-    let output_path = output_dir.join("lexiroot-v0.1.sqlite");
+    let input_path = root.join(BUILD_DB_PATH);
+    let output_path = root.join(RELEASE_DB_PATH);
 
-    std::fs::create_dir_all(&output_dir)?;
+    if let Some(parent) = output_path.parent() {
+        std::fs::create_dir_all(parent)?;
+    }
 
     export(&input_path, &output_path)
         .with_context(|| format!("exporting {} -> {}", input_path.display(), output_path.display()))?;

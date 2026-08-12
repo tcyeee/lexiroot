@@ -4,25 +4,36 @@ use rusqlite::Connection;
 
 fn build_fixture_db(path: &std::path::Path) {
     let conn = Connection::open(path).unwrap();
+    // The fixture has to stamp its own schema version: `store::load` rejects
+    // a database that doesn't declare one.
+    conn.execute_batch(&format!(
+        "
+        CREATE TABLE meta (key TEXT PRIMARY KEY, value TEXT NOT NULL);
+        INSERT INTO meta VALUES ('{}', '{}');
+        ",
+        lexiroot_core::META_SCHEMA_VERSION,
+        lexiroot_core::RELEASE_SCHEMA_VERSION,
+    ))
+    .unwrap();
     conn.execute_batch(
         "
         CREATE TABLE morphemes (
             id TEXT PRIMARY KEY, form TEXT NOT NULL, positions TEXT NOT NULL,
             meanings TEXT NOT NULL, variants TEXT NOT NULL,
-            source TEXT NOT NULL, confidence REAL NOT NULL, evidence TEXT NOT NULL
+            confidence REAL NOT NULL, evidence TEXT NOT NULL
         );
         CREATE TABLE word_decompositions (
-            word TEXT PRIMARY KEY, source TEXT NOT NULL, confidence REAL NOT NULL, evidence TEXT NOT NULL
+            word TEXT PRIMARY KEY, confidence REAL NOT NULL, evidence TEXT NOT NULL
         );
         CREATE TABLE word_decomposition_segments (
             word TEXT NOT NULL, position INTEGER NOT NULL, morpheme_id TEXT NOT NULL,
             role TEXT NOT NULL, PRIMARY KEY (word, position)
         );
-        INSERT INTO morphemes VALUES ('in','in','prefix','[\"into\",\"not\"]','[]','colingoldberg_morphemes',0.95,'fixture entry ''in''');
-        INSERT INTO morphemes VALUES ('spect','spect','root','[\"look\",\"see\"]','[]','colingoldberg_morphemes',0.95,'fixture entry ''spect''');
-        INSERT INTO morphemes VALUES ('believe','believe','root','[\"have faith\"]','[]','lexiroot_stems',0.95,'fixture entry ''believe''');
-        INSERT INTO morphemes VALUES ('able','able','suffix','[\"capable of\"]','[]','colingoldberg_morphemes',0.95,'fixture entry ''able''');
-        INSERT INTO word_decompositions VALUES ('inspect','colingoldberg_morphemes',0.95,'source-listed example word, segmented into: in + spect');
+        INSERT INTO morphemes VALUES ('in','in','prefix','[\"into\",\"not\"]','[]',0.95,'fixture entry ''in''');
+        INSERT INTO morphemes VALUES ('spect','spect','root','[\"look\",\"see\"]','[]',0.95,'fixture entry ''spect''');
+        INSERT INTO morphemes VALUES ('believe','believe','root','[\"have faith\"]','[]',0.95,'fixture entry ''believe''');
+        INSERT INTO morphemes VALUES ('able','able','suffix','[\"capable of\"]','[]',0.95,'fixture entry ''able''');
+        INSERT INTO word_decompositions VALUES ('inspect',0.95,'dataset example word, segmented into: in + spect');
         INSERT INTO word_decomposition_segments VALUES ('inspect', 0, 'in', 'prefix');
         INSERT INTO word_decomposition_segments VALUES ('inspect', 1, 'spect', 'root');
         ",

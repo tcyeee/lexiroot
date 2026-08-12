@@ -12,13 +12,11 @@ CREATE TABLE morphemes (
     meanings TEXT NOT NULL,
     -- JSON array of irregular surface allomorphs; '[]' for most morphemes.
     variants TEXT NOT NULL,
-    source TEXT NOT NULL,
     confidence REAL NOT NULL,
     evidence TEXT NOT NULL
 );
 CREATE TABLE word_decompositions (
     word TEXT PRIMARY KEY,
-    source TEXT NOT NULL,
     confidence REAL NOT NULL,
     evidence TEXT NOT NULL
 );
@@ -31,10 +29,10 @@ CREATE TABLE word_decomposition_segments (
 );
 ";
 
-/// Writes a fresh `processed.sqlite`: morphemes and word decompositions in
-/// the deterministic (already sorted) order the caller provides, inside a
-/// single transaction.
-pub fn write_processed_db(path: &Path, morphemes: &[Morpheme], decompositions: &[WordDecomposition]) -> Result<()> {
+/// Writes a fresh build database (`BUILD_DB_PATH`): morphemes and word
+/// decompositions in the deterministic (already sorted) order the caller
+/// provides, inside a single transaction.
+pub fn write_normalized_db(path: &Path, morphemes: &[Morpheme], decompositions: &[WordDecomposition]) -> Result<()> {
     if path.exists() {
         std::fs::remove_file(path)?;
     }
@@ -44,7 +42,7 @@ pub fn write_processed_db(path: &Path, morphemes: &[Morpheme], decompositions: &
     let tx = conn.transaction()?;
     {
         let mut insert_morpheme = tx.prepare(
-            "INSERT INTO morphemes (id, form, positions, meanings, variants, source, confidence, evidence) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)",
+            "INSERT INTO morphemes (id, form, positions, meanings, variants, confidence, evidence) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
         )?;
         for m in morphemes {
             insert_morpheme.execute(rusqlite::params![
@@ -53,14 +51,13 @@ pub fn write_processed_db(path: &Path, morphemes: &[Morpheme], decompositions: &
                 m.positions.to_storage_string(),
                 serde_json::to_string(&m.meanings)?,
                 serde_json::to_string(&m.variants)?,
-                m.provenance.source.as_str(),
                 m.provenance.confidence(),
                 m.provenance.evidence,
             ])?;
         }
 
         let mut insert_word = tx.prepare(
-            "INSERT INTO word_decompositions (word, source, confidence, evidence) VALUES (?1, ?2, ?3, ?4)",
+            "INSERT INTO word_decompositions (word, confidence, evidence) VALUES (?1, ?2, ?3)",
         )?;
         let mut insert_segment = tx.prepare(
             "INSERT INTO word_decomposition_segments (word, position, morpheme_id, role) VALUES (?1, ?2, ?3, ?4)",
@@ -68,7 +65,6 @@ pub fn write_processed_db(path: &Path, morphemes: &[Morpheme], decompositions: &
         for d in decompositions {
             insert_word.execute(rusqlite::params![
                 d.word,
-                d.provenance.source.as_str(),
                 d.provenance.confidence(),
                 d.provenance.evidence,
             ])?;

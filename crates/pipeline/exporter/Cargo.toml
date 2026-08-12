@@ -12,6 +12,7 @@ name = "lexiroot-exporter"
 path = "src/main.rs"
 
 [dependencies]
+lexiroot-core.workspace = true
 rusqlite.workspace = true
 anyhow.workspace = true
 

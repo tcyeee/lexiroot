@@ -10,7 +10,7 @@ fn main() -> anyhow::Result<()> {
     let db_path: PathBuf = args
         .next()
         .map(PathBuf::from)
-        .unwrap_or_else(|| Path::new("data/release/lexiroot-v0.1.sqlite").to_path_buf());
+        .unwrap_or_else(|| Path::new(lexiroot_core::RELEASE_DB_PATH).to_path_buf());
 
     let db = lexiroot_store::load(&db_path)?;
     let text = std::fs::read_to_string(&list)?;

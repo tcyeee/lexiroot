@@ -1,22 +1,22 @@
 use lexiroot_core::{
-    Morpheme, MorphemeId, MorphemeKind, MorphemePositions, Provenance, SourceId, WordDecomposition,
+    Morpheme, MorphemeId, MorphemeKind, MorphemePositions, Provenance, WordDecomposition,
     MorphemeRef,
 };
 
-fn source_listed(evidence: &str) -> Provenance {
-    Provenance::new(SourceId::ColinGoldbergMorphemes, 0.95, evidence).unwrap()
+fn curated(evidence: &str) -> Provenance {
+    Provenance::new(0.95, evidence).unwrap()
 }
 
 #[test]
 fn provenance_rejects_confidence_out_of_range() {
-    assert!(Provenance::new(SourceId::Inferred, -0.01, "x").is_err());
-    assert!(Provenance::new(SourceId::Inferred, 1.01, "x").is_err());
+    assert!(Provenance::new(-0.01, "x").is_err());
+    assert!(Provenance::new(1.01, "x").is_err());
 }
 
 #[test]
 fn provenance_accepts_boundary_confidence() {
-    assert!(Provenance::new(SourceId::Inferred, 0.0, "x").is_ok());
-    assert!(Provenance::new(SourceId::Inferred, 1.0, "x").is_ok());
+    assert!(Provenance::new(0.0, "x").is_ok());
+    assert!(Provenance::new(1.0, "x").is_ok());
 }
 
 #[test]
@@ -50,7 +50,7 @@ fn morpheme_serde_round_trip() {
         "spect",
         MorphemePositions::from_kind(MorphemeKind::Root),
         vec!["look".into(), "see".into()],
-        source_listed("colingoldberg/morphemes entry 'spect'"),
+        curated("curated dataset entry 'spect'"),
     );
     let json = serde_json::to_string(&m).unwrap();
     let back: Morpheme = serde_json::from_str(&json).unwrap();
@@ -72,7 +72,7 @@ fn word_decomposition_serde_round_trip() {
                 role: MorphemeKind::Root,
             },
         ],
-        provenance: source_listed("example word for 'spect' per colingoldberg/morphemes"),
+        provenance: curated("dataset example word for 'spect'"),
     };
     let json = serde_json::to_string(&decomposition).unwrap();
     let back: WordDecomposition = serde_json::from_str(&json).unwrap();

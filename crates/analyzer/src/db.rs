@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use lexiroot_core::{Morpheme, MorphemeId, Provenance, SourceId, WordDecomposition};
+use lexiroot_core::{Morpheme, MorphemeId, Provenance, WordDecomposition};
 
 use crate::index::MorphemeIndex;
 use crate::segment::segment_ranked;
@@ -70,7 +70,7 @@ impl AnalyzerDb {
             "inferred by stripping known affixes around a matched root: {}{spelling}",
             forms.join(" + ")
         );
-        let provenance = Provenance::new(SourceId::Inferred, 0.5, evidence)
+        let provenance = Provenance::new(0.5, evidence)
             .expect("0.5 is always a valid confidence value");
 
         Some(WordDecomposition {

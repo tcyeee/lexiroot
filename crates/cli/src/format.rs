@@ -12,10 +12,9 @@ fn meanings_line(m: &Morpheme) -> String {
 pub fn format_analysis(db: &AnalyzerDb, decomposition: &WordDecomposition) -> String {
     let mut out = String::new();
     out.push_str(&format!(
-        "Word: {}  (confidence {:.2}, source: {})\n",
+        "Word: {}  (confidence {:.2})\n",
         decomposition.word,
         decomposition.provenance.confidence(),
-        decomposition.provenance.source.as_str()
     ));
 
     // Printed in word order and labelled by the role each morpheme plays in

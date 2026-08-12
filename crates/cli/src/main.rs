@@ -9,7 +9,7 @@ use clap::{Parser, Subcommand};
 #[command(name = "lexiroot", about = "Explain English words by their morphemes.")]
 struct Cli {
     /// Path to a release SQLite database.
-    #[arg(long, default_value = "data/release/lexiroot-v0.1.sqlite")]
+    #[arg(long, default_value = lexiroot_core::RELEASE_DB_PATH)]
     db: PathBuf,
 
     #[command(subcommand)]

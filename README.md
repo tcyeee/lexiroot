@@ -1,439 +1,144 @@
----
-tags:
-  - nativee
-created: 2026-07-02 10:41
----
 # LexiRoot
 
 > **Understand English from its roots.**
->
-> **The open-source morphology engine for English.**
->
-> *The SQLite of English morphology.*
+> An open-source, offline morphology engine for English.
 
-LexiRoot is an open-source Rust library and offline database for English morphology.
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+[![Rust](https://img.shields.io/badge/rust-2024%20edition-orange.svg)](https://www.rust-lang.org)
 
-Instead of treating words as isolated dictionary entries, LexiRoot models English as a structured knowledge graph of **morphemes**, **etymology**, and **word relationships**.
+LexiRoot decomposes English words into their morphemes — prefix, root, suffix —
+and explains *why*, with a confidence score and a source reference on every
+answer.
 
-It enables applications to answer questions like:
-
-- Why is **inspection** spelled this way?
-- Which words share the same Latin root?
-- What does the prefix **trans-** contribute?
-- Which words belong to the same word family?
-- How did this word evolve through history?
-
-Whether you're building a dictionary, an AI assistant, an IELTS learning app, or an NLP pipeline, LexiRoot provides a fast, embeddable, offline-first foundation.
-
----
-
-## Why LexiRoot?
-
-Most dictionaries are designed for humans.
-
-Most NLP datasets are designed for machines.
-
-LexiRoot is designed for **both**.
-
-It combines linguistic knowledge, structured data, and high-performance Rust APIs into a single reusable foundation.
-
----
-
-## What Makes LexiRoot Different?
-
-| Traditional Dictionary | LexiRoot |
-|------------------------|----------|
-| Defines words | Explains how words are built |
-| Lookup by word | Lookup by word, root, prefix, suffix, origin |
-| Flat entries | Connected knowledge graph |
-| Human-readable | Human & machine-readable |
-| Online services | Offline-first Rust library |
-| Closed ecosystem | Open-source infrastructure |
-
----
-
-## Core Capabilities
-
-- 🧩 Morpheme analysis (prefix / root / suffix)
-- 🌍 Etymology tracing
-- 🌳 Word family exploration
-- 🕸 Relationship graph traversal
-- ⚡ Offline, zero-network runtime
-- 📦 Embeddable Rust library
-- 📱 Mobile-ready (iOS / Android / Flutter)
-- 🌐 WebAssembly support
-- 🔍 Fast local search
-- 📚 Source-backed linguistic data
-
-
----
-
-## Vision
-
-Most existing English dictionaries answer questions like:
-
-> What does this word mean?
-
-LexiRoot aims to answer deeper questions:
-
-- How is this word constructed?
-- Which morphemes does it contain?
-- What other words share the same root?
-- Where did this word originate?
-- How are thousands of English words connected?
-
-Instead of treating English as a collection of isolated words, LexiRoot models it as a connected graph.
-
----
-
-## Features
-
-### Morphological Analysis
-
-```text
-transportation
-
-trans- + port + -ation
 ```
+$ lexiroot analyze unbelievable
 
-```rust
-let analysis = db.analyze("transportation")?;
-
-println!("{:#?}", analysis);
-```
-
-Output:
-
-```text
-Word: transportation
+Word: unbelievable  (confidence 0.95)
 
 Prefix:
-  trans = across
+  un = against, deprive, negate, negation, not, one, opposite, release, reverse, single
 
 Root:
-  port = carry
+  believe = accept as true, have faith in
 
 Suffix:
-  ation = process or result
+  able = able to, fit to, having the quality of, capable of being, worthy
+
+Evidence: source-listed example word, segmented into: un + believe + able, after reversing silent-e deletion at the root boundary
 ```
+
+Note the root: the word spells it `believ`, but the answer names the canonical
+morpheme `believe` and says which spelling rule it had to undo to get there.
+That is the whole point of the project — not just splitting a string, but
+producing an analysis you can check.
 
 ---
 
-### Spelling Changes at Morpheme Boundaries
+## Status
 
-English rewrites the stem when it attaches an affix. `believe` + `-able` is
-spelled `believable`, `happy` + `-ness` is `happiness`, `run` + `-ing` is
-`running`. A segmenter that tiles a word with literal substrings finds nothing
-in any of them: the letters sitting in the root slot (`believ`, `happi`,
-`runn`) are not the letters the morpheme table holds.
+**v0.1 — first working milestone.** The pipeline, the segmenter, the release
+database, the CLI and a local web UI all work end to end.
 
-LexiRoot handles this in two places, split by whether a rule can predict the
-change:
+What ships today:
 
-| | mechanism | where | examples |
-|---|---|---|---|
-| **Regular** | derived by rule | `analyzer::ortho` | silent-e deletion, consonant doubling, `y` → `i` |
-| **Irregular** | listed per morpheme | `Morpheme::variants` | `admit` ~ `admiss`, `receive` ~ `recept` |
-
-The split matters. Regular changes are *productive* — they apply to stems the
-database has never seen — so listing them per stem would mean three or four
-dead rows each and would still miss anything new. Irregular alternation is not
-predictable from spelling at all, so no rule reaches it and it has to be
-written down.
-
-```text
-unbelievable
-
-un- + believe + -able      # root slot reads "believ"; silent-e restored
-```
-
-Segments are always reported under the **canonical** morpheme id, never the
-surface spelling, so every id in a decomposition resolves in the morpheme
-table:
-
-```rust
-db.analyze("unhappiness")?;   // un : prefix, happy : root, ness : suffix
-db.analyze("admission")?;     // admit : root, ion : suffix
-```
-
----
-
-### Root Lookup
-
-```rust
-let root = db.root("spect")?;
-```
-
-Output:
-
-```text
-spect
-
-Meaning:
-  look
-  see
-
-Origin:
-  Latin specere
-
-Related words:
-
-inspect
-respect
-prospect
-spectator
-perspective
-retrospective
-```
-
----
-
-### Word Family
-
-```rust
-db.family("act")
-```
-
-```text
-act
-├── action
-├── active
-├── activity
-├── actor
-├── react
-├── interact
-└── deactivate
-```
-
----
-
-### Etymology
-
-```rust
-db.etymology("television")
-```
-
-```text
-tele
-Greek
-↓
-
-vision
-Latin
-↓
-
-television
-English
-```
-
----
-
-### Relationship Graph
-
-```text
-          spect
-         /  |   \
-        /   |    \
- inspect  respect  spectator
-        \
-         perspective
-```
-
-Relationship traversal runs as SQL recursive queries against the release SQLite file, not a fully materialized in-memory graph. This keeps runtime memory footprint low, which matters on mobile targets.
-
----
-
-## Design Goals
-
-LexiRoot is built around several core principles.
-
-### Offline First
-
-No Internet connection is required.
-
-Everything runs locally.
-
----
-
-### Embeddable
-
-Designed to run inside:
-
-- iOS
-- Android
-- Flutter
-- Tauri
-- Desktop
-- CLI
-- WebAssembly
-
-Runtime crates (`core`, `analyzer`, `graph`, `search`) carry zero native dependencies, so they cross-compile cleanly to `wasm32-unknown-unknown` and mobile targets (`aarch64-apple-ios`, `aarch64-linux-android`, etc). Anything that needs a native dependency (e.g. a Postgres or filesystem client) lives only in the build-time `pipeline/` crates and never gets linked into the runtime.
-
----
-
-### Source Driven
-
-Every piece of data should be traceable back to reliable sources.
-
-Currently loaded:
-
-| source | what it supplies |
+| | |
 |---|---|
-| `colingoldberg-morphemes` | Greek/Latin bound roots and affixes (primary) |
-| `withenglishwecan-roots` | Greek/Latin roots (secondary; merged, primary wins on conflict) |
-| `lexiroot-stems` | **ours** — native free stems and irregular allomorphs |
+| Morphemes in the release database | **4,066** |
+| Precomputed word decompositions | **10,649** |
+| Release database size | **3.4 MB** |
+| Hand-checked regression cases | **61** passing, 4 documented gaps |
+| Coverage on the 209k-word system dictionary | **43.5%** |
 
-The third exists because the first two are *bound-root* dictionaries. They are
-good at `spect`, `port` and `struct` — forms that never stand alone as words —
-and contain essentially none of the Germanic core of English. The consequence
-was total rather than partial: `believe`, `help`, `friend` and `break` were all
-absent, so nothing built on them could be segmented at all, however good the
-algorithm. See [`data/README.md`](data/README.md) for each dataset's origin and
-the curation rules.
+Word decomposition, root lookup and word-family listing are implemented.
+**Etymology tracing, relationship-graph traversal, FFI and WebAssembly
+bindings are not** — see [Roadmap](#roadmap). Earlier drafts of this document
+described them as if they existed; they were design intent, not code.
 
-Planned — **每一个都要先确认许可证再导入**。项目整体以 MIT 分发，而下面这些源没有一个
-是 MIT，导入前需要逐个核实条款，必要时改为运行时可选下载而不是打进 release 库：
+---
 
-| 候选源 | 需要确认的点 |
+## Why
+
+Most dictionaries tell you what a word means. LexiRoot tells you how it is
+built:
+
+- Why is **inspection** spelled this way?
+- Which words share the root of **spect**?
+- What does **trans-** contribute to **transportation**?
+- Which words belong to the same family?
+
+It is designed to be embedded — a Rust library plus a read-only SQLite file,
+no network, no service to call.
+
+| Traditional dictionary | LexiRoot |
 |---|---|
-| Wiktionary | 内容是 CC BY-SA / GFDL 双重授权，share-alike 是传染性的：衍生数据很可能必须同样以 CC BY-SA 发布，与「release 库整体 MIT」冲突 |
-| MorphoLex | 学术数据集，需确认是否带 NonCommercial / ShareAlike 限制 |
-| Etymonline | 商业站点内容，默认全部权利保留，除非拿到明确授权否则不能打包分发 |
-| 其他开放语言学数据集 | 逐个核实 |
-
-判断标准：只要某个源的条款会波及整个 release 库的授权，就不进 `data/sources/`。
-
----
-
-### Explainable
-
-Every analysis should include:
-
-- confidence score
-- supporting evidence
-- source references
-
-No "black-box" AI results.
-
-These three fields are modeled as a `Provenance` struct in `core`, attached to every `Morpheme`, `Root`, and `Relationship` record. It is a first-class part of the schema, not metadata bolted on later.
+| Defines words | Explains how words are built |
+| Lookup by word | Lookup by word, root, or affix |
+| Flat entries | Morpheme table + decomposition table |
+| Online service | Offline-first embeddable library |
+| Opaque answers | Confidence + evidence + source on every record |
 
 ---
 
-### Immutable Releases
+## Quick start
 
-The runtime database is read-only.
+Requires a recent stable Rust toolchain (2024 edition). SQLite is vendored via
+`rusqlite`'s `bundled` feature — nothing to install.
 
-All data generation happens offline through reproducible pipelines.
-
-The `pipeline/` crates (`importer`, `validator`, `exporter`) are build-time only binaries, never linked into the runtime. Reproducibility comes from pinning raw source snapshots (fixed Wiktionary/MorphoLex/Etymonline dump versions) and deterministic ordering in the exporter, so the same input always produces a byte-identical release SQLite file.
-
----
-
-## Architecture
-
-```mermaid
-flowchart TD
-    subgraph sources["Raw Sources"]
-        A1[Wiktionary]
-        A2[MorphoLex]
-        A3[Etymonline]
-    end
-
-    subgraph pipeline["pipeline/ (build-time only, native deps allowed)"]
-        B[importer]
-        C[validator<br/>assigns confidence + provenance]
-        D[exporter]
-    end
-
-    E[(processed.sqlite<br/>working DB)]
-    F[(release.sqlite<br/>read-only)]
-
-    subgraph runtime["LexiRoot Runtime (zero native deps)"]
-        G[core]
-        H[analyzer]
-        I[graph]
-        J[search]
-    end
-
-    sources --> B --> E --> C --> D --> F --> runtime
-
-    runtime --> K[CLI]
-    runtime --> L[ffi crate → Mobile]
-    runtime --> M[wasm crate → Browser]
+```bash
+git clone https://github.com/tcyeee/lexiroot
+cd lexiroot
+cargo build --release
 ```
 
----
+The release database is committed at `data/dist/lexiroot.sqlite`, so the CLI
+works immediately.
 
-## Project Structure
+### CLI
 
-```text
-lexiroot/
-
-├── crates/
-│   ├── core/          # domain model + Provenance, zero native deps
-│   ├── analyzer/      # runtime morphological analysis (was "parser")
-│   ├── graph/          # relationship traversal via SQL recursive queries
-│   ├── search/         # fast local search/index
-│   ├── ffi/             # mobile bindings (iOS / Android / Flutter)
-│   ├── wasm/           # WebAssembly bindings, split from ffi (different target constraints)
-│   ├── store/          # release SQLite → in-memory AnalyzerDb (native dep, host-side only)
-│   ├── cli/
-│   ├── web/            # local test page + JSON API over the analyzer (dev tool)
-│   │
-│   └── pipeline/       # build-time only, never linked into runtime
-│       ├── importer/    # parses raw sources into structured records
-│       ├── validator/   # cross-checks records, assigns confidence + provenance
-│       └── exporter/    # writes validated records to release SQLite
-│
-├── data/
-│   ├── sources/            # importer inputs, one file per source, hand-editable
-│   │   ├── colingoldberg-morphemes.json  # Greek/Latin bound roots and affixes
-│   │   ├── withenglishwecan-roots.json   # Greek/Latin roots
-│   │   └── lexiroot-stems.json           # native free stems + irregular allomorphs
-│   ├── gold/               # hand-checked segmentations; the segmenter's regression set
-│   ├── build/              # intermediate `processed.sqlite` (gitignored)
-│   └── release/            # read-only release SQLite files
-│
-├── docs/
-└── examples/
+```bash
+./target/release/lexiroot analyze inspection
+./target/release/lexiroot root spect
+./target/release/lexiroot family port
 ```
 
-`core` / `analyzer` / `graph` / `search` never depend on `pipeline/*` — the boundary is enforced by the workspace dependency graph, not just convention, so a runtime crate can never accidentally pull in a native dependency and break the WASM/mobile build.
-
----
-
-## Example
-
-```rust
-use lexiroot::Database;
-
-fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let db = Database::open("lexiroot.db")?;
-
-    let result = db.analyze("inspection")?;
-
-    println!("{:#?}", result);
-
-    Ok(())
-}
+```
+$ lexiroot family port
+port
+├── apportion
+├── comport
+├── comportment
+├── deport
+├── export
+├── import
+├── manuport
+├── port
+├── portable
+├── portage
+├── portion
+├── proportion
+├── purport
+├── rapport
+├── report
+├── support
+└── transport
 ```
 
----
+Point at a different database with `--db <path>`.
 
-## 本地测试页面
+### Local web UI
 
-`crates/web` 是一个开发期工具：把 release 数据库加载进内存，起一个本地 HTTP 服务，提供一个网页用来试分词结果。
+`crates/web` loads the release database into memory and serves a page for
+trying queries interactively.
 
 ```bash
 cargo run -p lexiroot-web
-# LexiRoot test page: http://127.0.0.1:8080  (db: data/release/lexiroot-v0.1.sqlite)
+# LexiRoot test page: http://127.0.0.1:8080  (db: data/dist/lexiroot.sqlite)
 ```
 
-可选参数：`--db <path>`、`--host <addr>`、`--port <port>`。
+Options: `--db <path>`, `--host <addr>`, `--port <port>`. Query state lives in
+the URL (`?mode=analyze&q=inspection`), so a result can be shared or reloaded.
 
-页面支持三种查询（与 CLI 的 `analyze` / `root` / `family` 走同一条查询路径），查询状态写进 URL（`?mode=analyze&q=inspection`），可直接分享或刷新复现。
-
-同样的三个接口也可以直接用 curl 调：
+The same three endpoints answer JSON directly:
 
 ```bash
 curl 'http://127.0.0.1:8080/api/analyze?word=inspection'
@@ -441,116 +146,387 @@ curl 'http://127.0.0.1:8080/api/root?text=spect'
 curl 'http://127.0.0.1:8080/api/family?text=port'
 ```
 
-服务端只用 `std`（无 HTTP 框架依赖），默认只监听 loopback：没有鉴权、限流和 TLS，只用于本地测试，不要对外暴露。
+> **This is a development tool.** The server uses only `std` (no HTTP
+> framework) and binds loopback by default. There is no auth, no rate
+> limiting, no TLS. Do not expose it.
+
+### As a library
+
+```rust
+use lexiroot_core::RELEASE_DB_PATH;
+
+fn main() -> anyhow::Result<()> {
+    let db = lexiroot_store::load(std::path::Path::new(RELEASE_DB_PATH))?;
+
+    if let Some(analysis) = db.analyze("inspection") {
+        for segment in &analysis.segments {
+            let m = db.get_morpheme(&segment.morpheme_id).unwrap();
+            println!("{:>6}  {}  {}", segment.role.as_str(), m.form, m.meanings.join(", "));
+        }
+        println!("confidence {:.2}", analysis.provenance.confidence());
+    }
+    Ok(())
+}
+```
+
+`lexiroot_store::load` reads the whole database into an in-memory `AnalyzerDb`
+and verifies its schema version. `lexiroot_analyzer` itself never touches
+SQLite — that boundary is what keeps the runtime free of native dependencies.
 
 ---
 
-## Future Roadmap
+## How it works
 
-### v0.1
+### Two tiers, and an honest "no"
 
-- English word database
-- Prefix database
-- Suffix database
-- Root database
-- Morphology parser
-- SQLite export
+`AnalyzerDb::analyze` answers in one of three ways:
+
+| Tier | Path | Source | Confidence |
+|---|---|---|---|
+| 1 | Exact hit in the precomputed decomposition table | the dataset that listed it | 0.95 |
+| 2 | Live segmentation over the morpheme index | `inferred` | 0.50 |
+| 3 | No parse scored above the floor | — | `None` |
+
+Tier 3 matters. A scored search always finds *something* for a long word, so
+without a floor `unhappiness` would come back as `un + hap + pi + ness`, stated
+just as confidently as a correct answer. Refusing to answer is better than
+answering wrongly with authority.
+
+### Scoring, not greedy matching
+
+The segmenter enumerates parses of the grammar `prefix* root suffix*` and
+scores them. Greedy first-match returns `trans + por + tat + ion` for
+*transportation* as readily as `trans + port + ation`; the weights are what
+separate them. They penalise affix-only roots, two-character segments, stacked
+prefixes and word-final short roots, and reward pushing the root rightward and
+matching longer roots.
+
+The weights are tuned against `data/gold/segmentations.tsv` and documented
+inline in `crates/analyzer/src/segment.rs`. Change one and run:
+
+```bash
+cargo test -p lexiroot-store --test gold
+```
+
+### Spelling changes at morpheme boundaries
+
+English rewrites the stem when it attaches an affix: `believe` + `-able` is
+`believable`, `happy` + `-ness` is `happiness`, `run` + `-ing` is `running`. A
+segmenter that tiles a word with literal substrings finds nothing in any of
+them — the letters in the root slot (`believ`, `happi`, `runn`) are not the
+letters the morpheme table holds.
+
+LexiRoot splits this by whether a rule can predict the change:
+
+| | Mechanism | Where | Examples |
+|---|---|---|---|
+| **Regular** | Derived by rule, run backwards | `analyzer::ortho` | silent-e deletion, consonant doubling, `y` → `i` |
+| **Irregular** | Listed per morpheme | `Morpheme::variants` | `admit` ~ `admiss`, `receive` ~ `recept`, `in-` ~ `im-`/`il-`/`ir-` |
+
+The split is deliberate. Regular changes are *productive* — they apply to stems
+the database has never seen — so listing them per stem would mean three or four
+dead rows each and would still miss anything new. Irregular alternation is not
+predictable from spelling at all, so it has to be written down.
+
+Segments are always reported under the **canonical** morpheme id, never the
+surface spelling, so every id in a decomposition resolves in the morpheme
+table.
+
+### Explainability is in the schema
+
+Every `Morpheme` and `WordDecomposition` carries a `Provenance`:
+
+```rust
+pub struct Provenance {
+    confidence: f32,        // constructor-validated 0.0..=1.0
+    pub evidence: String,   // human-readable reason
+}
+```
+
+It is a required field on the struct, not optional metadata, so an
+unexplainable record cannot be constructed.
 
 ---
 
-### v0.2
+## Data
 
-- Word family graph
-- Etymology graph
-- Confidence scoring
-- CLI
+### The dataset
+
+One hand-editable file — `data/sources/morphemes.json`, 4,066 morphemes — is the
+whole input to the pipeline.
+
+```json
+"admit": { "positions": ["root"], "meanings": ["let in", "confess"], "examples": ["admission"], "variants": ["admiss"] }
+```
+
+It was assembled from three: two third-party Greek/Latin root dictionaries plus
+this project's own native-stem list, which the importer used to merge on every
+build under a priority order. That merge is now resolved once, at curation time,
+and written down — a conflict you can see and overrule beats one adjudicated
+implicitly on every build.
+
+| Origin | Supplied | Entries | Morphemes | License |
+|---|---|---|---|---|
+| [colingoldberg/morphemes](https://github.com/colingoldberg/morphemes) | Greek/Latin bound roots and affixes with meanings and example words | 2,435 | 3,762 | MIT |
+| [WithEnglishWeCan/generated-english-roots-list](https://github.com/WithEnglishWeCan/generated-english-roots-list) | Greek/Latin roots | 1,061 | 102 net | MIT |
+| ours | Native free stems and irregular allomorphs | 267 | 202 net | — |
+
+The counts differ for different reasons. One `colingoldberg` entry can list
+several forms (`Afro-` and `Afro`), so 2,435 entries expanded to 3,762 distinct
+morphemes. The second dictionary added only 102 net — the other 959 of its roots
+were already covered. And 65 of the 267 curated stems merged into existing
+entries, adding a position, examples or variants rather than a new row.
+
+That third group exists because the first two are *bound-root* dictionaries.
+They are good at `spect`, `port` and `struct` — forms that never stand alone —
+and contain essentially none of the Germanic core of English. The consequence
+was total, not partial: `believe`, `help`, `friend` and `break` were all absent,
+so nothing built on them could be segmented at all, however good the algorithm.
+
+Records carry no per-source marker. The datasets are fully absorbed, so there is
+nothing left for one to distinguish; both upstream datasets are MIT, and keeping
+their copyright notices — see [`THIRD_PARTY_NOTICES.md`](THIRD_PARTY_NOTICES.md)
+— is the whole of what that requires.
+
+See [`data/README.md`](data/README.md) for the schema and curation rules.
+
+### Adding a source
+
+Every candidate needs its license checked *before* import. The project
+distributes as MIT, and none of the obvious next sources are:
+
+| Candidate | The problem |
+|---|---|
+| Wiktionary | CC BY-SA / GFDL dual-licensed; share-alike is viral and would likely force the whole release database to CC BY-SA |
+| MorphoLex | Academic dataset — needs a check for NonCommercial / ShareAlike terms |
+| Etymonline | Commercial site, all rights reserved; cannot be bundled without explicit permission |
+
+The rule: if a source's terms would reach the license of the release database,
+it does not go into the dataset. An optional runtime download is the fallback if
+the data is worth it. Importing a share-alike source would also mean
+reintroducing a per-record license marker — with one file and no such source,
+there is nothing to mark, so no field is reserved for it in advance.
+
+### Release database
+
+The release file's path is fixed at `data/dist/lexiroot.sqlite` and its version
+lives *inside* it, in a `meta` table (`schema_version`, `data_version`). Both
+are compile-time constants in `lexiroot-core`, so stamping them keeps the export
+byte-reproducible.
+
+A version in the filename would be a constant every producer and consumer had
+to repeat, and bumping it would leave the old file on disk for anything that
+missed the edit. Instead `store::load` reads `schema_version` and refuses a
+database this build cannot read. Published artifacts get their version at
+packaging time (`lexiroot-0.2.0.sqlite`) — the one place the number is written
+by hand.
 
 ---
 
-### v0.3
+## Architecture
 
-- FFI
-- Swift package
-- Kotlin bindings
-- Flutter bindings
+```mermaid
+flowchart TD
+    A1[("data/sources/morphemes.json<br/>hand-editable, 4,066 morphemes")]
+
+    subgraph pipeline["pipeline/ — build-time only, native deps allowed"]
+        B[importer<br/>parse, precompute]
+        D[exporter<br/>deterministic write]
+    end
+
+    E[(data/build/normalized.sqlite)]
+    F[(data/dist/lexiroot.sqlite<br/>read-only release)]
+
+    subgraph runtime["Runtime"]
+        G[core<br/>domain model, zero deps]
+        H[analyzer<br/>segmenter, no SQLite]
+        S[store<br/>SQLite → AnalyzerDb]
+    end
+
+    A1 --> B --> E --> D --> F --> S
+    G --- H
+    S --> K[cli]
+    S --> W[web]
+```
+
+| Crate | Role | Native deps |
+|---|---|---|
+| `lexiroot-core` | Domain model: `Morpheme`, `WordDecomposition`, `Provenance`, artifact paths and versions | none |
+| `lexiroot-analyzer` | Morpheme index, scored segmenter, orthographic rules, query surface (`AnalyzerDb`) | none |
+| `lexiroot-store` | Loads a release SQLite file into an `AnalyzerDb`; checks schema version | rusqlite |
+| `lexiroot-cli` | `lexiroot` binary | rusqlite (via store) |
+| `lexiroot-web` | Local test page + JSON API, `std`-only HTTP | rusqlite (via store) |
+| `lexiroot-pipeline-importer` | Parses the dataset, precomputes decompositions | rusqlite |
+| `lexiroot-pipeline-exporter` | Writes the deterministic release database | rusqlite |
+
+`core` and `analyzer` carry **zero** dependencies beyond `serde`/`thiserror`,
+which is what will let them cross-compile to `wasm32-unknown-unknown` and
+mobile targets. Anything needing a native dependency lives behind `store` or in
+`pipeline/`, and the boundary is enforced by the workspace dependency graph
+rather than by convention.
+
+### Layout
+
+```text
+lexiroot/
+├── crates/
+│   ├── core/              # domain model + Provenance
+│   ├── analyzer/          # segmenter, ortho rules, in-memory query surface
+│   ├── store/             # release SQLite → AnalyzerDb
+│   ├── cli/               # the `lexiroot` binary
+│   ├── web/               # local test page + JSON API (dev tool)
+│   └── pipeline/          # build-time only, never linked into runtime
+│       ├── importer/      # sources → normalized.sqlite
+│       └── exporter/      # normalized.sqlite → release
+└── data/
+    ├── sources/           # morphemes.json — the curated dataset
+    ├── gold/              # hand-checked segmentations; the regression set
+    ├── build/             # intermediate normalized.sqlite (gitignored)
+    └── dist/              # lexiroot.sqlite — read-only release
+```
+
+Each of the three artifact paths — the dataset, the build database, the release
+database — is a single constant in `lexiroot-core` (`DATASET_PATH`,
+`BUILD_DB_PATH`, `RELEASE_DB_PATH`), never spelled out at both the producing and
+consuming end.
 
 ---
 
-### v0.4
+## Development
 
-- WebAssembly
-- Browser support
-- Incremental updates
+### Rebuilding the database
+
+```bash
+cargo run -p lexiroot-pipeline-importer    # data/sources/morphemes.json → data/build/normalized.sqlite
+cargo run -p lexiroot-pipeline-exporter    # → data/dist/lexiroot.sqlite
+```
+
+The importer prints a summary:
+
+```
+wrote data/build/normalized.sqlite
+  morphemes:                          4066
+  cross-source duplicates skipped:     959
+  curated stems added:                 202
+  curated stems merged into existing:  65
+  morphemes carrying variants:         4
+  example words seen:                 17137
+  precomputed decompositions:         10649
+  skipped (no full segmentation):      6488
+```
+
+That last line is the honest measure of where the engine stands: of 17,137
+example words the sources list, 6,488 could not be fully segmented and were
+dropped rather than stored as partial guesses.
+
+The exporter is deterministic — the same input produces a byte-identical file,
+which is why `meta` holds only compile-time constants and no build timestamp.
+
+### Tests
+
+```bash
+cargo test --workspace
+```
+
+The regression set that matters is `data/gold/segmentations.tsv` — 61
+hand-checked segmentations, run by `cargo test -p lexiroot-store --test gold`.
+It is deliberately *not* derived from the precomputed decomposition table,
+which is itself produced by running the segmenter over the sources' example
+words; scoring against that would only measure the segmenter's agreement with
+itself.
+
+The file also records 4 `GAP` entries — words this pass is known not to handle,
+each with its cause in a trailing comment (`helpers`: inflection unhandled;
+`rebuilt`, `unspoken`: ablaut; `deception`: variant loses to a junk parse). A
+second test asserts they still fail, so closing a gap is a visible event rather
+than a silent one.
+
+### Coverage
+
+```bash
+cargo run --release -p lexiroot-store --example coverage -- /usr/share/dict/words
+# 91026/209484 = 43.5%
+```
+
+This measures whether a word gets *an* analysis, not whether it is correct —
+use the gold set for that.
 
 ---
 
-### v1.0
+## Roadmap
 
-- Stable Rust API
-- Offline binary database
-- High-performance search engine
-- Complete documentation
+**v0.1 — done.** Morpheme database, scored segmenter, spelling rules,
+confidence and provenance, SQLite pipeline, CLI, local web UI.
+
+**v0.2 — quality and reach.** Raise coverage and gold-set size; inflectional
+handling (`helpers`, `running`); ablaut variants (`speak` ~ `spoke`); expand
+the curated native stems across the Germanic core; publish crates to crates.io.
+
+**v0.3 — relationships.** Word-family and etymology graphs as real data rather
+than a by-product of the precomputed table; graph traversal as SQL recursive
+queries against the release file, so mobile memory stays flat.
+
+**v0.4 — bindings.** `ffi` crate for iOS/Android/Flutter; separate `wasm` crate
+for the browser; incremental database updates.
+
+**v1.0 — stable.** Frozen Rust API, quantified performance targets (query
+latency, binary size, database size), complete documentation.
+
+### Known open questions
+
+- **Target user is not converged.** Dictionary apps, AI assistants, exam-prep
+  tools and NLP pipelines want quite different things. One concrete seed user
+  would be worth more than the next three features.
+- **No quantified performance targets.** "Fast" and "embeddable" are still
+  adjectives here, not numbers.
+- **No competitive comparison** against Datamuse, WordNet or Morfessor.
 
 ---
 
-## Philosophy
+## Contributing
 
-LexiRoot is **not** another English dictionary.
+Useful contributions, roughly in order of value:
 
-It is an open, programmable knowledge base for English morphology.
+1. **Add gold cases.** `data/gold/segmentations.tsv` is the only thing keeping
+   the scoring weights honest. Wrong output you can document is a real
+   contribution.
+2. **Extend `data/sources/morphemes.json`.** Read the curation rules in
+   [`data/README.md`](data/README.md) first — in particular, do not list
+   spelling changes a rule already predicts, and check any addition against the
+   gold set before opening a PR.
+3. **Close a documented `GAP`.** Promote the entry out of the GAP section in
+   the same change.
 
-The goal is to provide a reliable foundation that developers can build upon, enabling a new generation of language learning tools, AI assistants, and linguistic applications.
+Run `cargo test --workspace` before submitting. If you change scoring weights,
+say what the gold set did in the PR description.
 
 ---
 
 ## Acknowledgements
 
-LexiRoot 的词素数据以下面这些开源项目为起点。它们省下了从零手工整理数千条词根的
-工作量，让最小闭环得以在几周内跑通而不是几个月。数据在本项目中经过修改和扩充，
-以适配分词器的需要；感谢原作者以宽松许可证公开这些成果。
+LexiRoot's morpheme data started from these open-source projects. They saved
+the work of hand-compiling thousands of roots from scratch and are the reason
+the first working loop took weeks rather than months. The data has since been
+modified and extended for the segmenter's needs.
 
-| 项目 | 提供了什么 | 许可证 |
+| Project | Contributed | License |
 |---|---|---|
-| [colingoldberg/morphemes](https://github.com/colingoldberg/morphemes) | 2435 条带词义的前缀 / 词根 / 后缀 | MIT |
-| [WithEnglishWeCan/generated-english-roots-list](https://github.com/WithEnglishWeCan/generated-english-roots-list) | 1061 条希腊语 / 拉丁语词根 | MIT |
+| [colingoldberg/morphemes](https://github.com/colingoldberg/morphemes) | 2,435 prefix / root / suffix entries with meanings and example words | MIT |
+| [WithEnglishWeCan/generated-english-roots-list](https://github.com/WithEnglishWeCan/generated-english-roots-list) | 1,061 Greek/Latin roots | MIT |
 
-完整许可证文本见 [`THIRD_PARTY_NOTICES.md`](THIRD_PARTY_NOTICES.md)，各数据集的出处
-和修改说明见 [`data/README.md`](data/README.md)。
+Full license texts are in [`THIRD_PARTY_NOTICES.md`](THIRD_PARTY_NOTICES.md);
+per-dataset origins and modifications are in [`data/README.md`](data/README.md).
 
 ---
 
 ## License
 
-代码与数据均以 MIT 许可证发布，见 [`LICENSE`](LICENSE)。
+Code and data are released under the MIT License — see [`LICENSE`](LICENSE).
 
-`data/sources/` 下的数据集以两个 MIT 项目为起点并经本项目修改，原始版权声明保留在
-[`THIRD_PARTY_NOTICES.md`](THIRD_PARTY_NOTICES.md)。
+Datasets under `data/sources/` derive from the two MIT projects above and have
+been modified by this project; the original copyright notices are preserved in
+[`THIRD_PARTY_NOTICES.md`](THIRD_PARTY_NOTICES.md).
 
 ---
 
-## 早期评审（2026-07-02，项目尚未启动）
-
-### 架构师视角
-
-- 数据流水线（Raw Sources → Import/Validation → PostgreSQL 开发态 → SQLite/Binary 发布态 → Runtime）思路合理，crate 拆分符合 Rust workspace 惯例。
-- ~~**待确认风险**：Wiktionary / MorphoLex / Etymonline 的数据许可证差异很大，能否合法打包分发到"immutable release"需要在动工前确认，否则可能卡死 v1.0。~~ → v0.1 通过只选 MIT 数据源规避：当前三个源全部 MIT 或本项目原创，整个项目可以干净地以 MIT 分发。**但风险对 planned 源仍然成立**——上面那三个的许可证需要在导入前逐个确认，见 Source Driven 一节的说明。
-- ~~发布数据库缺版本 / 迁移策略~~ → 已改为全程只用 SQLite（开发态 `processed.sqlite`、发布态 `release/`），去掉 Postgres 这一层，减少一套 schema 维护和一个外部依赖。
-- v0.1 就铺开 9 个 crate 偏重，建议先用 core + cli 跑通最小闭环再拆分。（仍建议保留，crate 数量本身没变，但已按运行时/构建时拆成 `pipeline/` 和顶层 runtime crate 两组，边界更清楚）
-- ~~三端 FFI + WASM 工程量大~~ → 已将 `ffi`（移动端）和 `wasm`（WebAssembly）拆成两个独立 crate，并明确 runtime crate 零原生依赖的约束，降低交叉编译风险。
-- ~~parser/importer/validator 边界模糊~~ → `parser` 更名为 `analyzer`（运行时形态学分析），`importer`/`validator`/`exporter` 归入 `pipeline/`，只在构建时使用。
-- ~~图遍历怎么承载没说~~ → 明确为对 release SQLite 跑 SQL 递归查询，不做全量内存图，控制移动端内存占用。
-- ~~Explainable 在架构里没有落地位置~~ → confidence/evidence/source 建模为 `core` 里的 `Provenance` 结构，挂在每条 Morpheme/Root/Relationship 记录上。
-- ~~reproducible pipeline 没有编排结构~~ → 明确 `pipeline/` 下的 crate 只在构建时运行、不进入运行时产物，可复现性靠锁定源数据快照版本 + exporter 确定性排序保证。
-- 缺测试策略和性能目标（词库规模、查询延迟、二进制体积），"fast"、"embeddable" 目前只是形容词，未量化。（仍未解决）
-
-### 产品经理视角
-
-- 定位句"The SQLite of English morphology"差异化清晰，"Explainable / No black-box AI results"是稀缺卖点。
-- 目标用户未收敛（dictionary / AI assistant / IELTS app / NLP pipeline 四类差异很大），建议先定一个具体种子用户验证。
-- 缺竞品对比（Datamuse、WordNet、Morfessor 等），需要说明差异化优势。
-- 路线图全是功能清单，缺验证性里程碑（例如先做 20-30 个高频词根 + 极简 CLI，找 3-5 个潜在使用者验证需求）。
-- 数据授权问题同时是产品/法务风险，会直接影响"开源基础设施"定位是否成立。
-
-### 结论
-
-项目启动前优先确认：**数据能否合法获取并分发** + **至少一个真实使用场景验证**，优先级高于完整架构搭建。
+中文文档见 [README.zh.md](README.zh.md)。

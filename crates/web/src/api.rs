@@ -33,7 +33,6 @@ fn decomposition_json(db: &AnalyzerDb, d: &WordDecomposition) -> Value {
         "word": d.word,
         "segments": segments,
         "confidence": d.provenance.confidence(),
-        "source": d.provenance.source.as_str(),
         "evidence": d.provenance.evidence,
     })
 }
@@ -48,7 +47,6 @@ pub fn root(db: &AnalyzerDb, text: &str) -> Option<Value> {
     Some(json!({
         "morpheme": morpheme_json(info.morpheme),
         "confidence": info.morpheme.provenance.confidence(),
-        "source": info.morpheme.provenance.source.as_str(),
         "evidence": info.morpheme.provenance.evidence,
         "related_words": info.related_words,
     }))

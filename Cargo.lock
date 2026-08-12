@@ -301,6 +301,7 @@ name = "lexiroot-pipeline-exporter"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "lexiroot-core",
  "rusqlite",
  "sha2",
  "tempfile",

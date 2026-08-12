@@ -77,7 +77,7 @@ fn render(segments: &[(String, MorphemeKind)]) -> String {
 #[test]
 fn segmenter_matches_gold_set() {
     let root = workspace_root();
-    let db = lexiroot_store::load(&root.join("data/release/lexiroot-v0.1.sqlite"))
+    let db = lexiroot_store::load(&root.join(lexiroot_core::RELEASE_DB_PATH))
         .expect("release database should load");
     let gold = std::fs::read_to_string(root.join("data/gold/segmentations.tsv"))
         .expect("gold set should be readable");
@@ -111,7 +111,7 @@ fn segmenter_matches_gold_set() {
 #[test]
 fn documented_gaps_still_fail() {
     let root = workspace_root();
-    let db = lexiroot_store::load(&root.join("data/release/lexiroot-v0.1.sqlite"))
+    let db = lexiroot_store::load(&root.join(lexiroot_core::RELEASE_DB_PATH))
         .expect("release database should load");
     let gold = std::fs::read_to_string(root.join("data/gold/segmentations.tsv"))
         .expect("gold set should be readable");

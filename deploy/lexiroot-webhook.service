@@ -1,0 +1,41 @@
+# Receives the deploy request from GitHub Actions and runs deploy.sh.
+#
+# Named `lexiroot-webhook` rather than `webhook` so it does not collide with the
+# unit that Debian's `webhook` package installs; leave that one disabled.
+#
+# It binds to the app_network bridge gateway, not to loopback, because nginx
+# runs in a container here and cannot reach the host's 127.0.0.1. The address
+# and port come from /etc/lexiroot/webhook.env, which bootstrap.sh writes after
+# looking the gateway up — so if the network is ever recreated on a different
+# subnet, re-running bootstrap.sh is what fixes it. Binding fails loudly rather
+# than falling back to a wider interface.
+
+[Unit]
+Description=Webhook receiver for LexiRoot deploys
+After=network-online.target docker.service
+Wants=network-online.target
+Requires=docker.service
+
+[Service]
+User=deploy
+Group=deploy
+# Membership in `docker` is what lets deploy.sh talk to the daemon. It is
+# effectively root on this host — see the note in README.md.
+SupplementaryGroups=docker
+EnvironmentFile=/etc/lexiroot/webhook.env
+ExecStart=/usr/bin/webhook \
+    -hooks /etc/lexiroot/hooks.json \
+    -ip ${WEBHOOK_IP} \
+    -port ${WEBHOOK_PORT} \
+    -hotreload \
+    -verbose
+Restart=on-failure
+RestartSec=5
+
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=full
+ProtectHome=true
+
+[Install]
+WantedBy=multi-user.target

@@ -9,7 +9,9 @@ FROM rust:1-bookworm AS build
 WORKDIR /app
 COPY Cargo.toml Cargo.lock ./
 COPY crates ./crates
-RUN cargo build --release -p lexiroot-web
+# --locked fails the build on a stale Cargo.lock rather than quietly resolving
+# to newer versions, so the image matches what was tested locally.
+RUN cargo build --release --locked -p lexiroot-web
 
 FROM debian:bookworm-slim AS runtime
 WORKDIR /app

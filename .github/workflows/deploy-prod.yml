@@ -1,20 +1,25 @@
-# Deploys the web demo whenever `prod` moves.
+# Builds the web demo image whenever `prod` moves, publishes it to GHCR, and
+# asks the server to pull it.
 #
-# The runner never builds anything: it opens an SSH session to the host that
-# serves lexiroot.viii.me and drives a git fetch + docker build + container
-# swap there. Building on the host keeps the image and the running container
-# on the same machine, so no registry is involved.
+# The runner never logs into the server. It builds the image here — the host
+# that serves lexiroot.viii.me is too small to compile Rust comfortably — pushes
+# to ghcr.io, then makes one signed HTTPS request to a webhook receiver on the
+# host, which runs deploy/deploy.sh there. No SSH, no inbound shell, and no
+# credential in this repo that could open one.
+#
+# The request is deliberately sent *after* the image push succeeds, which is why
+# this is a curl from the workflow rather than a repository webhook on `push`:
+# a repository webhook fires the moment you push, while the image is still
+# building, and the server would pull the previous one.
 #
 # Required repository secrets:
-#   DEPLOY_HOST         hostname or IP of the server
-#   DEPLOY_USER         SSH user (must be able to run docker)
-#   DEPLOY_SSH_KEY      private key, full PEM including header/footer lines
-#   DEPLOY_KNOWN_HOSTS  optional; `ssh-keyscan <host>` output. When unset the
-#                       workflow keyscans at deploy time, which trusts whatever
-#                       key answers — set it to pin the host properly.
+#   DEPLOY_WEBHOOK_URL     e.g. https://lexiroot.viii.me/hooks/deploy
+#   DEPLOY_WEBHOOK_SECRET  shared with /etc/lexiroot/hooks.json on the server
 #
-# Optional repository variables (defaults in the env block below):
-#   DEPLOY_PORT, DEPLOY_PATH, DEPLOY_CONTAINER, DEPLOY_HOST_PORT
+# Optional repository variables:
+#   DEPLOY_IMAGE  image name; defaults to ghcr.io/<owner>/<repo>
+#
+# Server-side setup lives in deploy/README.md.
 
 name: Deploy prod
 
@@ -28,124 +33,82 @@ concurrency:
   group: deploy-prod
   cancel-in-progress: false
 
+# `packages: write` is what lets GITHUB_TOKEN push to GHCR, so no personal
+# access token is involved on either end.
+permissions:
+  contents: read
+  packages: write
+
 jobs:
   deploy:
     runs-on: ubuntu-latest
     environment: production
     env:
-      DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
-      DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
-      DEPLOY_PORT: ${{ vars.DEPLOY_PORT || '22' }}
-      APP_DIR: ${{ vars.DEPLOY_PATH || '/opt/lexiroot' }}
-      CONTAINER: ${{ vars.DEPLOY_CONTAINER || 'lexiroot' }}
-      HOST_PORT: ${{ vars.DEPLOY_HOST_PORT || '8080' }}
-      REPO_URL: https://github.com/${{ github.repository }}.git
-      REVISION: ${{ github.sha }}
+      IMAGE: ${{ vars.DEPLOY_IMAGE || format('ghcr.io/{0}', github.repository) }}
 
     steps:
-      # Without this the run dies inside ssh-keyscan with an empty hostname,
-      # which reads like a network problem rather than a missing secret.
+      # Without this the run dies inside curl with an empty URL, which reads
+      # like a network problem rather than a missing secret.
       - name: Check required secrets
         env:
-          SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
+          WEBHOOK_URL: ${{ secrets.DEPLOY_WEBHOOK_URL }}
+          WEBHOOK_SECRET: ${{ secrets.DEPLOY_WEBHOOK_SECRET }}
         run: |
           set -euo pipefail
           missing=()
-          [ -n "$DEPLOY_HOST" ] || missing+=(DEPLOY_HOST)
-          [ -n "$DEPLOY_USER" ] || missing+=(DEPLOY_USER)
-          [ -n "$SSH_KEY" ] || missing+=(DEPLOY_SSH_KEY)
+          [ -n "$WEBHOOK_URL" ] || missing+=(DEPLOY_WEBHOOK_URL)
+          [ -n "$WEBHOOK_SECRET" ] || missing+=(DEPLOY_WEBHOOK_SECRET)
           if [ ${#missing[@]} -gt 0 ]; then
             echo "::error::Missing repository secrets: ${missing[*]}. Set them under Settings > Secrets and variables > Actions, then re-run."
             exit 1
           fi
 
-      - name: Configure SSH
+      - uses: actions/checkout@v4
+
+      - uses: docker/setup-buildx-action@v3
+
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      # Two tags: `prod` is what the server pulls, `sha-<commit>` is a permanent
+      # handle for pinning an older build by hand when a rollback needs to
+      # outlive the one generation deploy.sh keeps on disk.
+      - name: Build and push the image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          platforms: linux/amd64
+          push: true
+          tags: |
+            ${{ env.IMAGE }}:prod
+            ${{ env.IMAGE }}:sha-${{ github.sha }}
+          labels: |
+            org.opencontainers.image.revision=${{ github.sha }}
+            org.opencontainers.image.source=https://github.com/${{ github.repository }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      # The receiver verifies this signature before running anything, in the
+      # same scheme GitHub itself uses for webhooks (HMAC-SHA256 over the body).
+      #
+      # No --retry: the receiver blocks until the deploy finishes, so a timeout
+      # here does not mean the deploy failed, and retrying could start a second
+      # one. Re-run the workflow by hand if a request genuinely gets lost.
+      - name: Ask the server to pull
         env:
-          SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
-          KNOWN_HOSTS: ${{ secrets.DEPLOY_KNOWN_HOSTS }}
+          WEBHOOK_URL: ${{ secrets.DEPLOY_WEBHOOK_URL }}
+          WEBHOOK_SECRET: ${{ secrets.DEPLOY_WEBHOOK_SECRET }}
         run: |
           set -euo pipefail
-          mkdir -p ~/.ssh
-          chmod 700 ~/.ssh
-          printf '%s\n' "$SSH_KEY" > ~/.ssh/id_deploy
-          chmod 600 ~/.ssh/id_deploy
-          if [ -n "$KNOWN_HOSTS" ]; then
-            printf '%s\n' "$KNOWN_HOSTS" > ~/.ssh/known_hosts
-          else
-            echo "::warning::DEPLOY_KNOWN_HOSTS is unset; trusting the key offered right now."
-            ssh-keyscan -p "$DEPLOY_PORT" -H "$DEPLOY_HOST" > ~/.ssh/known_hosts 2>/dev/null
-          fi
-          chmod 600 ~/.ssh/known_hosts
-
-      - name: Build and swap the container
-        run: |
-          set -euo pipefail
-          ssh -i ~/.ssh/id_deploy -p "$DEPLOY_PORT" \
-              -o BatchMode=yes -o ConnectTimeout=15 \
-              "$DEPLOY_USER@$DEPLOY_HOST" \
-              "APP_DIR='$APP_DIR' CONTAINER='$CONTAINER' HOST_PORT='$HOST_PORT' \
-               REPO_URL='$REPO_URL' REVISION='$REVISION' bash -s" <<'REMOTE'
-          set -euo pipefail
-
-          IMAGE="$CONTAINER:prod"
-          PREVIOUS="$CONTAINER:previous"
-
-          # First deploy clones; later ones hard-reset onto the pushed commit so
-          # any manual edit on the server is discarded rather than merged.
-          if [ ! -d "$APP_DIR/.git" ]; then
-            git clone --branch prod "$REPO_URL" "$APP_DIR"
-          fi
-          cd "$APP_DIR"
-          git fetch --prune origin prod
-          git checkout -B prod "$REVISION"
-          git reset --hard "$REVISION"
-          echo "Deploying $(git rev-parse --short HEAD): $(git log -1 --pretty=%s)"
-
-          # Keep the image that is currently serving, so a failed health check
-          # has something to fall back to.
-          if docker image inspect "$IMAGE" >/dev/null 2>&1; then
-            docker tag "$IMAGE" "$PREVIOUS"
-          fi
-
-          docker build -t "$IMAGE" .
-
-          start_container() {
-            docker rm -f "$CONTAINER" >/dev/null 2>&1 || true
-            docker run -d \
-              --name "$CONTAINER" \
-              --restart unless-stopped \
-              -p "127.0.0.1:$HOST_PORT:8080" \
-              "$1"
-          }
-
-          # Bound to loopback only: nginx terminates TLS and proxies inward.
-          start_container "$IMAGE"
-
-          healthy() {
-            for _ in $(seq 1 20); do
-              if curl -fsS --max-time 3 "http://127.0.0.1:$HOST_PORT/" >/dev/null 2>&1; then
-                return 0
-              fi
-              sleep 2
-            done
-            return 1
-          }
-
-          if healthy; then
-            echo "Health check passed."
-          else
-            echo "Health check failed; container logs follow." >&2
-            docker logs --tail 50 "$CONTAINER" >&2 || true
-            if docker image inspect "$PREVIOUS" >/dev/null 2>&1; then
-              echo "Rolling back to the previous image." >&2
-              start_container "$PREVIOUS"
-            fi
-            exit 1
-          fi
-
-          docker image prune -f >/dev/null
-          REMOTE
-
-      - name: Remove the deploy key
-        if: always()
-        run: rm -f ~/.ssh/id_deploy
+          body="$(jq -nc --arg revision "$GITHUB_SHA" '{revision: $revision}')"
+          signature="$(printf '%s' "$body" \
+            | openssl dgst -sha256 -hmac "$WEBHOOK_SECRET" -r \
+            | cut -d ' ' -f 1)"
+          curl -fsS --max-time 300 \
+            -H 'Content-Type: application/json' \
+            -H "X-Hub-Signature-256: sha256=$signature" \
+            --data "$body" \
+            "$WEBHOOK_URL"

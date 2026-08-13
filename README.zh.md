@@ -5,6 +5,10 @@
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![Rust](https://img.shields.io/badge/rust-2024%20edition-orange.svg)](https://www.rust-lang.org)
+[![Live demo](https://img.shields.io/badge/demo-lexiroot.viii.me-brightgreen.svg)](https://lexiroot.viii.me)
+
+**🌐 在线演示：[lexiroot.viii.me](https://lexiroot.viii.me)** —— 在浏览器里试试分词、
+词根查询和词族列举。
 
 LexiRoot 把英语单词拆解成词素——前缀、词根、后缀——并解释**为什么**这样拆：每个
 答案都带置信度和数据来源。
@@ -140,7 +144,9 @@ curl 'http://127.0.0.1:8080/api/family?text=port'
 ```
 
 > **这是开发工具。** 服务端只用 `std`（没有 HTTP 框架依赖），默认只监听 loopback。
-> 没有鉴权、限流和 TLS，不要对外暴露。
+> 没有鉴权、限流和 TLS，不要直接对外暴露——在线演示
+> [lexiroot.viii.me](https://lexiroot.viii.me) 是把它放在 nginx 反向代理后面、
+> 由 nginx 负责 TLS。
 
 ### 作为库使用
 

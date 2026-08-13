@@ -5,6 +5,10 @@
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![Rust](https://img.shields.io/badge/rust-2024%20edition-orange.svg)](https://www.rust-lang.org)
+[![Live demo](https://img.shields.io/badge/demo-lexiroot.viii.me-brightgreen.svg)](https://lexiroot.viii.me)
+
+**🌐 Live demo: [lexiroot.viii.me](https://lexiroot.viii.me)** — try word analysis,
+root lookup and word-family listing in the browser.
 
 LexiRoot decomposes English words into their morphemes — prefix, root, suffix —
 and explains *why*, with a confidence score and a source reference on every
@@ -148,7 +152,9 @@ curl 'http://127.0.0.1:8080/api/family?text=port'
 
 > **This is a development tool.** The server uses only `std` (no HTTP
 > framework) and binds loopback by default. There is no auth, no rate
-> limiting, no TLS. Do not expose it.
+> limiting, no TLS. Do not expose it directly — the hosted demo at
+> [lexiroot.viii.me](https://lexiroot.viii.me) runs it behind an nginx
+> reverse proxy that terminates TLS.
 
 ### As a library
 

@@ -1,0 +1,7 @@
+target
+.git
+data/build
+data/sources
+data/gold
+*.md
+.DS_Store

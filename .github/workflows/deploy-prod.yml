@@ -43,6 +43,22 @@ jobs:
       REVISION: ${{ github.sha }}
 
     steps:
+      # Without this the run dies inside ssh-keyscan with an empty hostname,
+      # which reads like a network problem rather than a missing secret.
+      - name: Check required secrets
+        env:
+          SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
+        run: |
+          set -euo pipefail
+          missing=()
+          [ -n "$DEPLOY_HOST" ] || missing+=(DEPLOY_HOST)
+          [ -n "$DEPLOY_USER" ] || missing+=(DEPLOY_USER)
+          [ -n "$SSH_KEY" ] || missing+=(DEPLOY_SSH_KEY)
+          if [ ${#missing[@]} -gt 0 ]; then
+            echo "::error::Missing repository secrets: ${missing[*]}. Set them under Settings > Secrets and variables > Actions, then re-run."
+            exit 1
+          fi
+
       - name: Configure SSH
         env:
           SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}

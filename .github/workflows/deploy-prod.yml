@@ -1,0 +1,135 @@
+# Deploys the web demo whenever `prod` moves.
+#
+# The runner never builds anything: it opens an SSH session to the host that
+# serves lexiroot.viii.me and drives a git fetch + docker build + container
+# swap there. Building on the host keeps the image and the running container
+# on the same machine, so no registry is involved.
+#
+# Required repository secrets:
+#   DEPLOY_HOST         hostname or IP of the server
+#   DEPLOY_USER         SSH user (must be able to run docker)
+#   DEPLOY_SSH_KEY      private key, full PEM including header/footer lines
+#   DEPLOY_KNOWN_HOSTS  optional; `ssh-keyscan <host>` output. When unset the
+#                       workflow keyscans at deploy time, which trusts whatever
+#                       key answers — set it to pin the host properly.
+#
+# Optional repository variables (defaults in the env block below):
+#   DEPLOY_PORT, DEPLOY_PATH, DEPLOY_CONTAINER, DEPLOY_HOST_PORT
+
+name: Deploy prod
+
+on:
+  push:
+    branches: [prod]
+  workflow_dispatch:
+
+# Never let two deploys race for the same container.
+concurrency:
+  group: deploy-prod
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment: production
+    env:
+      DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
+      DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
+      DEPLOY_PORT: ${{ vars.DEPLOY_PORT || '22' }}
+      APP_DIR: ${{ vars.DEPLOY_PATH || '/opt/lexiroot' }}
+      CONTAINER: ${{ vars.DEPLOY_CONTAINER || 'lexiroot' }}
+      HOST_PORT: ${{ vars.DEPLOY_HOST_PORT || '8080' }}
+      REPO_URL: https://github.com/${{ github.repository }}.git
+      REVISION: ${{ github.sha }}
+
+    steps:
+      - name: Configure SSH
+        env:
+          SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
+          KNOWN_HOSTS: ${{ secrets.DEPLOY_KNOWN_HOSTS }}
+        run: |
+          set -euo pipefail
+          mkdir -p ~/.ssh
+          chmod 700 ~/.ssh
+          printf '%s\n' "$SSH_KEY" > ~/.ssh/id_deploy
+          chmod 600 ~/.ssh/id_deploy
+          if [ -n "$KNOWN_HOSTS" ]; then
+            printf '%s\n' "$KNOWN_HOSTS" > ~/.ssh/known_hosts
+          else
+            echo "::warning::DEPLOY_KNOWN_HOSTS is unset; trusting the key offered right now."
+            ssh-keyscan -p "$DEPLOY_PORT" -H "$DEPLOY_HOST" > ~/.ssh/known_hosts 2>/dev/null
+          fi
+          chmod 600 ~/.ssh/known_hosts
+
+      - name: Build and swap the container
+        run: |
+          set -euo pipefail
+          ssh -i ~/.ssh/id_deploy -p "$DEPLOY_PORT" \
+              -o BatchMode=yes -o ConnectTimeout=15 \
+              "$DEPLOY_USER@$DEPLOY_HOST" \
+              "APP_DIR='$APP_DIR' CONTAINER='$CONTAINER' HOST_PORT='$HOST_PORT' \
+               REPO_URL='$REPO_URL' REVISION='$REVISION' bash -s" <<'REMOTE'
+          set -euo pipefail
+
+          IMAGE="$CONTAINER:prod"
+          PREVIOUS="$CONTAINER:previous"
+
+          # First deploy clones; later ones hard-reset onto the pushed commit so
+          # any manual edit on the server is discarded rather than merged.
+          if [ ! -d "$APP_DIR/.git" ]; then
+            git clone --branch prod "$REPO_URL" "$APP_DIR"
+          fi
+          cd "$APP_DIR"
+          git fetch --prune origin prod
+          git checkout -B prod "$REVISION"
+          git reset --hard "$REVISION"
+          echo "Deploying $(git rev-parse --short HEAD): $(git log -1 --pretty=%s)"
+
+          # Keep the image that is currently serving, so a failed health check
+          # has something to fall back to.
+          if docker image inspect "$IMAGE" >/dev/null 2>&1; then
+            docker tag "$IMAGE" "$PREVIOUS"
+          fi
+
+          docker build -t "$IMAGE" .
+
+          start_container() {
+            docker rm -f "$CONTAINER" >/dev/null 2>&1 || true
+            docker run -d \
+              --name "$CONTAINER" \
+              --restart unless-stopped \
+              -p "127.0.0.1:$HOST_PORT:8080" \
+              "$1"
+          }
+
+          # Bound to loopback only: nginx terminates TLS and proxies inward.
+          start_container "$IMAGE"
+
+          healthy() {
+            for _ in $(seq 1 20); do
+              if curl -fsS --max-time 3 "http://127.0.0.1:$HOST_PORT/" >/dev/null 2>&1; then
+                return 0
+              fi
+              sleep 2
+            done
+            return 1
+          }
+
+          if healthy; then
+            echo "Health check passed."
+          else
+            echo "Health check failed; container logs follow." >&2
+            docker logs --tail 50 "$CONTAINER" >&2 || true
+            if docker image inspect "$PREVIOUS" >/dev/null 2>&1; then
+              echo "Rolling back to the previous image." >&2
+              start_container "$PREVIOUS"
+            fi
+            exit 1
+          fi
+
+          docker image prune -f >/dev/null
+          REMOTE
+
+      - name: Remove the deploy key
+        if: always()
+        run: rm -f ~/.ssh/id_deploy

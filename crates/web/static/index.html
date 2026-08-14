@@ -159,9 +159,13 @@ const $ = (id) => document.getElementById(id);
 const out = $("out");
 
 /**
- * One GoatCounter event, e.g. `analyze/inspection`. Silently does nothing when
- * count.js never loaded — blocked, offline, or running on localhost — because
- * analytics must never be able to break the page it measures.
+ * One GoatCounter event, e.g. `query/analyze`. Event names are drawn from a
+ * fixed vocabulary — the mode and the HTTP status — never from the search box,
+ * so what gets counted is how often each mode is used, not what was typed.
+ *
+ * Silently does nothing when count.js never loaded — blocked, offline, or
+ * running on localhost — because analytics must never be able to break the
+ * page it measures.
  *
  * count.js is async, so a query fired from the URL on first paint can beat it
  * to the punch. That is exactly the shared-link case worth measuring, so the
@@ -175,12 +179,6 @@ function track(path) {
   };
   if (window.goatcounter?.count) send();
   else $("goatcounter")?.addEventListener("load", send, { once: true });
-}
-
-/** Keeps event names bounded: this is user input, not a fixed vocabulary. */
-function slug(value) {
-  const cleaned = value.toLowerCase().replace(/[^a-z0-9'-]+/g, "-").replace(/^-|-$/g, "");
-  return cleaned ? cleaned.slice(0, 32) : "other";
 }
 
 function el(tag, className, text) {
@@ -314,7 +312,7 @@ async function run(rawValue) {
   syncUrl(value);
 
   const current = mode;
-  track(`${current}/${slug(value)}`);
+  track(`query/${current}`);
   card().append(el("p", "empty", "查询中…"));
   try {
     const response = await fetch(`/api/${current}?${PARAM[current]}=${encodeURIComponent(value)}`);

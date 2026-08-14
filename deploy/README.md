@@ -43,6 +43,11 @@ Under *Settings → Secrets and variables → Actions*:
 | --- | --- |
 | `DEPLOY_WEBHOOK_URL` | `https://lexiroot.viii.me/hooks/deploy` |
 | `DEPLOY_WEBHOOK_SECRET` | `openssl rand -hex 32` |
+| `SERVERCHAN_SENDKEY` | Server酱 sendkey, for the deploy notification |
+
+`SERVERCHAN_SENDKEY` is the only optional one: without it the `notify` job logs
+a warning and passes, so a fork can deploy without any push target. With it, the
+job reports every outcome — success, failure, and cancellation alike.
 
 Optional variable `DEPLOY_IMAGE` overrides the image name, which otherwise
 defaults to `ghcr.io/<owner>/<repo>`.

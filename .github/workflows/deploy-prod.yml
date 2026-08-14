@@ -16,6 +16,9 @@
 #   DEPLOY_WEBHOOK_URL     e.g. https://lexiroot.viii.me/hooks/deploy
 #   DEPLOY_WEBHOOK_SECRET  shared with /etc/lexiroot/hooks.json on the server
 #
+# Optional repository secrets:
+#   SERVERCHAN_SENDKEY  Server酱 sendkey; the notify job below is skipped without it
+#
 # Optional repository variables:
 #   DEPLOY_IMAGE  image name; defaults to ghcr.io/<owner>/<repo>
 #
@@ -112,3 +115,61 @@ jobs:
             -H "X-Hub-Signature-256: sha256=$signature" \
             --data "$body" \
             "$WEBHOOK_URL"
+
+  # Separate job rather than a step, so it also reports the cases that kill the
+  # deploy job outright — a missing secret, a cancelled run, a runner that dies
+  # mid-build — instead of only the failures that happen to leave later steps
+  # runnable.
+  notify:
+    runs-on: ubuntu-latest
+    needs: deploy
+    if: always()
+
+    steps:
+      - name: Push the result to Server酱
+        env:
+          SENDKEY: ${{ secrets.SERVERCHAN_SENDKEY }}
+          RESULT: ${{ needs.deploy.result }}
+          # Untrusted text (anyone's commit message). It goes through the
+          # environment so the shell never sees it as code. Empty on
+          # workflow_dispatch, which carries no head commit.
+          COMMIT_MESSAGE: ${{ github.event.head_commit.message }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          set -euo pipefail
+
+          if [ -z "$SENDKEY" ]; then
+            echo "::warning::SERVERCHAN_SENDKEY is not set; skipping the deploy notification."
+            exit 0
+          fi
+
+          case "$RESULT" in
+            success) title="✅ LexiRoot 部署成功" ;;
+            cancelled) title="⚠️ LexiRoot 部署已取消" ;;
+            *) title="❌ LexiRoot 部署失败" ;;
+          esac
+
+          # Server酱 renders `desp` as Markdown; the blank lines are what keep
+          # the list from collapsing into one paragraph.
+          desp="$(jq -nr \
+            --arg repo "$GITHUB_REPOSITORY" \
+            --arg sha "${GITHUB_SHA:0:7}" \
+            --arg result "$RESULT" \
+            --arg actor "$GITHUB_ACTOR" \
+            --arg message "${COMMIT_MESSAGE:-（手动触发）}" \
+            --arg url "$RUN_URL" \
+            '"- 仓库：\($repo)\n- 提交：`\($sha)`\n- 提交信息：\($message | split("\n")[0])\n- 触发者：\($actor)\n- 结果：**\($result)**\n\n[查看运行日志](\($url))"')"
+
+          response="$(curl -fsS --max-time 30 \
+            -H 'Content-Type: application/json' \
+            --data "$(jq -nc --arg title "$title" --arg desp "$desp" '{title: $title, desp: $desp}')" \
+            "https://sctapi.ftqq.com/${SENDKEY}.send")"
+
+          # Server酱 answers 200 with a non-zero `code` for a revoked or
+          # rate-limited key, so the HTTP status alone would report a delivered
+          # message that nobody received.
+          if [ "$(jq -r '.code' <<<"$response")" != "0" ]; then
+            echo "::error::Server酱 rejected the notification: $response"
+            exit 1
+          fi
+          echo "Notified: ${title}"

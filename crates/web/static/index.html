@@ -6,110 +6,115 @@
 <title>LexiRoot · 分词测试台</title>
 <style>
   :root {
-    --bg: #f6f5f2;
+    --bg: #f8f8f6;
     --surface: #ffffff;
-    --border: #e2ded6;
-    --text: #23201c;
-    --muted: #766f66;
-    --accent: #9a5b2c;
+    --border: #e4e4df;
+    --text: #242521;
+    --muted: #777970;
+    --accent: #a15e38;
     --prefix: #2f6f8f;
-    --root: #9a5b2c;
+    --root: #a15e38;
     --suffix: #4a7a45;
-    --chip: #efece6;
+    --chip: #f0f0ec;
   }
   @media (prefers-color-scheme: dark) {
     :root {
-      --bg: #17161a;
-      --surface: #201f24;
-      --border: #33313a;
-      --text: #ece9e3;
-      --muted: #9b958c;
+      --bg: #181917;
+      --surface: #21221f;
+      --border: #363832;
+      --text: #edede8;
+      --muted: #a1a49b;
       --accent: #d99a63;
       --prefix: #79b6d4;
       --root: #d99a63;
       --suffix: #8fc189;
-      --chip: #2a292f;
+      --chip: #2b2d29;
     }
   }
   * { box-sizing: border-box; }
   body {
     margin: 0;
-    padding: 2.5rem 1.25rem 4rem;
+    padding: 4rem 1.25rem 5rem;
     background: var(--bg);
     color: var(--text);
     font: 15px/1.6 -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Hiragino Sans GB", sans-serif;
   }
-  main { max-width: 720px; margin: 0 auto; }
-  h1 { margin: 0; font-size: 1.6rem; letter-spacing: -0.01em; }
+  main { max-width: 680px; margin: 0 auto; }
+  .head { text-align: center; }
+  h1 { margin: 0; font-size: 2rem; letter-spacing: -0.04em; }
   h1 span { color: var(--accent); }
-  .head { display: flex; align-items: center; justify-content: space-between; gap: 1rem; }
   .repo {
     display: inline-flex; align-items: center; gap: 0.35rem;
-    padding: 0.35rem 0.7rem; border: 1px solid var(--border); border-radius: 999px;
-    background: var(--surface); color: var(--muted); font-size: 0.85rem; text-decoration: none;
+    margin-top: 0.7rem; color: var(--muted); font-size: 0.8rem; text-decoration: none;
   }
-  .repo:hover { border-color: var(--accent); color: var(--accent); }
-  .sub { margin: 0.25rem 0 0.5rem; color: var(--muted); font-size: 0.9rem; }
+  .repo:hover { color: var(--accent); }
+  .sub { max-width: 34rem; margin: 0.65rem auto 0; color: var(--muted); font-size: 0.9rem; }
   .notice {
-    margin: 0 0 1.75rem; padding: 0.55rem 0.8rem;
-    border: 1px dashed var(--border); border-radius: 10px;
-    background: var(--chip); color: var(--muted); font-size: 0.82rem;
+    margin: 0.4rem 0 2rem; color: var(--muted); font-size: 0.75rem; text-align: center;
   }
 
-  .modes { display: flex; gap: 0.5rem; margin-bottom: 0.75rem; flex-wrap: wrap; }
+  .modes { display: flex; justify-content: center; gap: 0.35rem; margin-bottom: 0.7rem; flex-wrap: wrap; }
   .modes button {
-    padding: 0.4rem 0.85rem; border: 1px solid var(--border); border-radius: 999px;
+    padding: 0.35rem 0.75rem; border: 1px solid transparent; border-radius: 999px;
     background: var(--surface); color: var(--muted); font: inherit; font-size: 0.85rem; cursor: pointer;
   }
+  .modes button:hover { color: var(--accent); }
   .modes button[aria-pressed="true"] { background: var(--accent); border-color: var(--accent); color: #fff; }
 
-  form { display: flex; gap: 0.5rem; }
+  form { display: flex; max-width: 540px; margin: 0 auto; gap: 0.5rem; }
   input {
-    flex: 1; min-width: 0; padding: 0.7rem 0.9rem; font: inherit;
-    border: 1px solid var(--border); border-radius: 10px;
+    flex: 1; min-width: 0; padding: 0.7rem 0.9rem; font: inherit; text-align: center;
+    border: 1px solid var(--border); border-radius: 9px;
     background: var(--surface); color: var(--text);
   }
   input:focus { outline: 2px solid var(--accent); outline-offset: -1px; }
   form button {
-    padding: 0.7rem 1.3rem; border: 0; border-radius: 10px;
+    padding: 0.7rem 1.25rem; border: 0; border-radius: 9px;
     background: var(--accent); color: #fff; font: inherit; cursor: pointer;
   }
 
-  .examples { margin-top: 0.75rem; display: flex; gap: 0.4rem; flex-wrap: wrap; align-items: center; }
+  .examples { justify-content: center; margin-top: 0.7rem; display: flex; gap: 0.35rem; flex-wrap: wrap; align-items: center; }
   .examples span { color: var(--muted); font-size: 0.8rem; }
   .chip {
-    padding: 0.2rem 0.6rem; border: 1px solid var(--border); border-radius: 999px;
+    padding: 0.18rem 0.55rem; border: 1px solid var(--border); border-radius: 999px;
     background: var(--chip); color: var(--text); font: inherit; font-size: 0.8rem; cursor: pointer;
   }
   .chip:hover { border-color: var(--accent); color: var(--accent); }
 
   .card {
-    margin-top: 1.5rem; padding: 1.25rem; background: var(--surface);
-    border: 1px solid var(--border); border-radius: 14px;
+    margin-top: 2.25rem; padding: 1.5rem 1.25rem; background: var(--surface);
+    border: 1px solid var(--border); border-radius: 14px; text-align: center;
   }
-  .card h2 { margin: 0 0 0.15rem; font-size: 1.25rem; }
-  .meta { color: var(--muted); font-size: 0.82rem; margin-bottom: 1rem; }
+  .card h2 { margin: 0; font-size: 1.35rem; letter-spacing: -0.02em; }
+  .meta { color: var(--muted); font-size: 0.8rem; margin: 0.25rem 0; }
   .meta code { font-size: 0.8rem; }
 
-  .segments { display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: stretch; }
-  .seg { flex: 1 1 130px; padding: 0.7rem 0.85rem; border: 1px solid var(--border); border-radius: 10px; }
-  .seg .kind { font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.06em; }
-  .seg .form { font-size: 1.1rem; font-weight: 600; margin: 0.1rem 0 0.15rem; }
-  .seg .meaning { color: var(--muted); font-size: 0.85rem; }
-  .seg.prefix { border-left: 3px solid var(--prefix); } .seg.prefix .kind { color: var(--prefix); }
-  .seg.root   { border-left: 3px solid var(--root); }   .seg.root .kind   { color: var(--root); }
-  .seg.suffix { border-left: 3px solid var(--suffix); } .seg.suffix .kind { color: var(--suffix); }
+  .segments { display: flex; justify-content: center; align-items: flex-start; max-width: 100%; overflow-x: auto; gap: 0.2rem; margin: 1.35rem auto 1rem; padding: 0 0.25rem 0.25rem; scrollbar-width: thin; }
+  .seg { display: inline-flex; flex: 0 0 auto; flex-direction: column; align-items: center; min-width: 4.5rem; padding: 0 0.35rem; }
+  .seg .kind { font-size: 0.65rem; line-height: 1.2; text-transform: uppercase; letter-spacing: 0.05em; }
+  .seg .form { font-size: 1.25rem; line-height: 1.3; font-weight: 650; margin: 0.1rem 0 0.12rem; }
+  .seg .meaning { max-width: 9rem; color: var(--muted); font-size: 0.78rem; line-height: 1.4; }
+  .seg.prefix .kind { color: var(--prefix); }
+  .seg.root .kind { color: var(--root); }
+  .seg.suffix .kind { color: var(--suffix); }
+  .dot { flex: 0 0 auto; padding: 1.2rem 0.05rem 0; color: var(--muted); font-size: 1.1rem; line-height: 1.3; }
 
   .evidence {
-    margin-top: 1rem; padding-top: 0.85rem; border-top: 1px dashed var(--border);
-    color: var(--muted); font-size: 0.82rem;
+    max-width: 38rem; margin: 1.1rem auto 0; padding-top: 0.8rem; border-top: 1px solid var(--border);
+    color: var(--muted); font-size: 0.78rem;
   }
-  .list { display: flex; flex-wrap: wrap; gap: 0.4rem; margin-top: 0.5rem; }
+  .list { justify-content: center; display: flex; flex-wrap: wrap; gap: 0.35rem; margin-top: 0.5rem; }
   .label { font-size: 0.78rem; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); }
-  ul.meanings { margin: 0.35rem 0 1rem; padding-left: 1.1rem; }
+  ul.meanings { max-width: 32rem; margin: 0.35rem auto 1rem; padding: 0; list-style: none; color: var(--muted); }
   .empty, .error { color: var(--muted); }
   .error { color: #c0522d; }
   @media (prefers-color-scheme: dark) { .error { color: #e58b62; } }
+  @media (max-width: 480px) {
+    body { padding-top: 2.5rem; }
+    .card { padding-inline: 0.75rem; }
+    .seg { min-width: 3.9rem; }
+    .seg .meaning { max-width: 7.5rem; }
+  }
 </style>
 <!-- Self-hosted GoatCounter. It records the pageview by itself and skips
      localhost unless `allow_local` is set, so a `cargo run` counts nothing;
@@ -136,7 +141,7 @@
   </div>
 
   <form id="form">
-    <input id="input" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="inspection">
+    <input id="input" aria-label="查询内容" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="inspection">
     <button type="submit">查询</button>
   </form>
 
@@ -229,17 +234,18 @@ function segmentsNode(segments) {
     box.append(el("p", "empty", "（无可解析的语素）"));
     return box;
   }
-  for (const segment of segments) {
+  segments.forEach((segment, index) => {
     // `role` is the slot this morpheme fills in this word; `positions` (also
     // on the payload) is every slot the form is attested in.
-    const seg = el("div", `seg ${segment.role}`);
+    if (index > 0) box.append(el("span", "dot", "·"));
+    const seg = el("span", `seg ${segment.role}`);
     seg.append(
-      el("div", "kind", KIND_LABEL[segment.role] ?? segment.role),
-      el("div", "form", segment.form),
-      el("div", "meaning", meaningText(segment)),
+      el("span", "kind", KIND_LABEL[segment.role] ?? segment.role),
+      el("span", "form", segment.form),
+      el("span", "meaning", meaningText(segment)),
     );
     box.append(seg);
-  }
+  });
   return box;
 }
 
